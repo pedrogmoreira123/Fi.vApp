@@ -2,7 +2,8 @@ import type { Express } from "express";
 import { createServer, type Server } from "http";
 import "./types"; // Import type extensions
 import { storage } from "./storage";
-import { setupWhatsAppRoutes } from "./whatsapp.routes";
+import { setupWahaRoutes } from "./waha-routes";
+import { setupWahaWebhook } from "./waha-webhook";
 import { 
   insertUserSchema,
   insertClientSchema,
@@ -12,6 +13,7 @@ import {
   insertQueueSchema,
   insertSettingsSchema,
   insertAiAgentConfigSchema,
+  insertChatbotSchema,
   insertFeedbackSchema,
   insertPlanSchema,
   insertSubscriptionSchema,
@@ -27,6 +29,7 @@ import {
   logoutUser,
   requireAuth,
   requireRole,
+  attachAuthPayload,
   encryptData,
   decryptData,
   validateWebhookSignature
@@ -41,7 +44,7 @@ const loginSchema = z.object({
 });
 
 export async function registerRoutes(app: Express): Promise<Server> {
-  // Authentication routes
+  // Authentication routes (without attachAuthPayload middleware)
   app.post('/api/auth/login', async (req, res) => {
     const requestContext = {
       ip: req.ip,
@@ -165,6 +168,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Apply attachAuthPayload middleware to all other routes to enrich req with JWT payload
+  app.use(attachAuthPayload);
+
   // User management routes (protected)
   app.get('/api/users', requireAuth, requireRole(['admin', 'supervisor', 'superadmin']), async (req, res) => {
     try {
@@ -180,16 +186,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/users', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
     try {
       const userData = insertUserSchema.parse(req.body);
+      const { companyId, role, ...userFields } = userData as any;
       
       // Hash password before creating user
-      const hashedPassword = await require('bcryptjs').hash(userData.password, 10);
-      const userWithHashedPassword = { ...userData, password: hashedPassword };
+      const hashedPassword = await require('bcryptjs').hash(userFields.password, 10);
+      const userWithHashedPassword = { ...userFields, password: hashedPassword };
       
+      // Create user
       const user = await storage.createUser(userWithHashedPassword);
+      
+      // If companyId is provided, create user-company relationship
+      if (companyId) {
+        await storage.createUserCompany({
+          userId: user.id,
+          companyId: companyId,
+          role: role || 'agent',
+          isActive: true,
+          isOwner: false
+        });
+      }
+      
       // Remove password from response
       const { password, ...safeUser } = user;
       res.status(201).json(safeUser);
     } catch (error) {
+      console.error('Error creating user:', error);
       res.status(400).json({ message: "Invalid user data" });
     }
   });
@@ -1797,8 +1818,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Setup WhatsApp routes
-  setupWhatsAppRoutes(app);
+  // Setup Evolution API routes (new implementation) - PRIORITY
+  const { setupEvolutionRoutes } = await import('./evolution-routes');
+  setupEvolutionRoutes(app);
+
+  // Setup WAHA routes (legacy - disabled in favor of Evolution API)
+  // setupWahaRoutes(app);
+  // setupWahaWebhook(app);
 
   const httpServer = createServer(app);
   return httpServer;

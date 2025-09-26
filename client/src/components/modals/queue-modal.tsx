@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select,
   SelectContent,
@@ -17,7 +18,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { QueueData } from '@/types';
+import { QueueData, ChatbotData } from '@/types';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 
 interface QueueModalProps {
   isOpen: boolean;
@@ -28,24 +31,51 @@ interface QueueModalProps {
 
 export default function QueueModal({ isOpen, onClose, queue, onSave }: QueueModalProps) {
   const [queueName, setQueueName] = useState('');
+  const [description, setDescription] = useState('');
   const [workingDays, setWorkingDays] = useState('monday');
   const [workingHours, setWorkingHours] = useState('09:00-18:00');
   const [messageInsideHours, setMessageInsideHours] = useState('');
   const [messageOutsideHours, setMessageOutsideHours] = useState('');
+  const [greetingMessage, setGreetingMessage] = useState('');
+  const [chatbotEnabled, setChatbotEnabled] = useState(false);
+  const [chatbotId, setChatbotId] = useState('');
+  const [allowCustomerSelection, setAllowCustomerSelection] = useState(true);
+  const [isActive, setIsActive] = useState(true);
+
+  // Fetch chatbots data
+  const { data: chatbots = [] } = useQuery({
+    queryKey: ['chatbots'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/chatbots');
+      return response.json();
+    }
+  });
 
   useEffect(() => {
     if (queue) {
       setQueueName(queue.name);
+      setDescription(queue.description || '');
       setWorkingDays('monday');
       setWorkingHours('09:00-18:00');
-      setMessageInsideHours('');
-      setMessageOutsideHours('');
+      setMessageInsideHours(queue.messageInsideHours || '');
+      setMessageOutsideHours(queue.messageOutsideHours || '');
+      setGreetingMessage(queue.greetingMessage || '');
+      setChatbotEnabled(queue.chatbotEnabled || false);
+      setChatbotId(queue.chatbotId || '');
+      setAllowCustomerSelection(queue.allowCustomerSelection !== false);
+      setIsActive(queue.isActive !== false);
     } else {
       setQueueName('');
+      setDescription('');
       setWorkingDays('monday');
       setWorkingHours('09:00-18:00');
       setMessageInsideHours('');
       setMessageOutsideHours('');
+      setGreetingMessage('');
+      setChatbotEnabled(false);
+      setChatbotId('');
+      setAllowCustomerSelection(true);
+      setIsActive(true);
     }
   }, [queue, isOpen]);
 
@@ -53,10 +83,16 @@ export default function QueueModal({ isOpen, onClose, queue, onSave }: QueueModa
     const queueData = {
       id: queue?.id,
       name: queueName,
+      description,
       workingDays,
       workingHours,
       messageInsideHours,
-      messageOutsideHours
+      messageOutsideHours,
+      greetingMessage,
+      chatbotEnabled,
+      chatbotId,
+      allowCustomerSelection,
+      isActive
     };
     
     if (onSave) {
@@ -90,6 +126,17 @@ export default function QueueModal({ isOpen, onClose, queue, onSave }: QueueModa
               value={queueName}
               onChange={(e) => setQueueName(e.target.value)}
               data-testid="input-queue-name"
+            />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="description">Descrição</Label>
+            <Textarea
+              id="description"
+              placeholder="Descrição da fila/setor"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              data-testid="textarea-queue-description"
             />
           </div>
           
@@ -145,6 +192,89 @@ export default function QueueModal({ isOpen, onClose, queue, onSave }: QueueModa
               onChange={(e) => setMessageOutsideHours(e.target.value)}
               data-testid="textarea-message-outside-hours"
             />
+          </div>
+          
+          <div className="space-y-2">
+            <Label htmlFor="greetingMessage">Mensagem de Saudação</Label>
+            <Textarea
+              id="greetingMessage"
+              className="h-20 resize-none"
+              placeholder="Mensagem de boas-vindas para novos clientes"
+              value={greetingMessage}
+              onChange={(e) => setGreetingMessage(e.target.value)}
+              data-testid="textarea-greeting-message"
+            />
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="chatbot-enabled">Chatbot Associado</Label>
+                <p className="text-sm text-muted-foreground">
+                  Ativar chatbot para esta fila
+                </p>
+              </div>
+              <Switch
+                id="chatbot-enabled"
+                checked={chatbotEnabled}
+                onCheckedChange={setChatbotEnabled}
+                data-testid="switch-chatbot-enabled"
+              />
+            </div>
+            
+            {chatbotEnabled && (
+              <div className="space-y-2">
+                <Label htmlFor="chatbotId">Selecionar Chatbot</Label>
+                <Select value={chatbotId} onValueChange={setChatbotId}>
+                  <SelectTrigger data-testid="select-chatbot">
+                    <SelectValue placeholder="Selecione um chatbot" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {chatbots.length === 0 ? (
+                      <SelectItem value="" disabled>Nenhum chatbot disponível</SelectItem>
+                    ) : (
+                      chatbots.map((chatbot: ChatbotData) => (
+                        <SelectItem key={chatbot.id} value={chatbot.id}>
+                          {chatbot.name}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+          
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="allow-selection">Permitir Seleção pelo Cliente</Label>
+                <p className="text-sm text-muted-foreground">
+                  Cliente pode escolher esta fila no menu
+                </p>
+              </div>
+              <Switch
+                id="allow-selection"
+                checked={allowCustomerSelection}
+                onCheckedChange={setAllowCustomerSelection}
+                data-testid="switch-allow-selection"
+              />
+            </div>
+            
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label htmlFor="is-active">Fila Ativa</Label>
+                <p className="text-sm text-muted-foreground">
+                  Fila está ativa e recebendo conversas
+                </p>
+              </div>
+              <Switch
+                id="is-active"
+                checked={isActive}
+                onCheckedChange={setIsActive}
+                data-testid="switch-is-active"
+              />
+            </div>
           </div>
         </div>
         

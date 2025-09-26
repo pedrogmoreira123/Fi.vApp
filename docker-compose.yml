@@ -1,0 +1,133 @@
+version: '3.8'
+
+services:
+  # Main Application
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: production
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/fivapp
+      - REDIS_URL=redis://redis:6379
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - ./uploads:/app/uploads
+      - ./sessions:/app/sessions
+      - ./logs:/app/logs
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # PostgreSQL Database
+  postgres:
+    image: postgres:15-alpine
+    environment:
+      POSTGRES_DB: fivapp
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: password
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./scripts/init-db.sql:/docker-entrypoint-initdb.d/init-db.sql
+    ports:
+      - "5432:5432"
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # Redis Cache
+  redis:
+    image: redis:7-alpine
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
+    ports:
+      - "6379:6379"
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # Evolution API
+  evolution:
+    image: evolution-api/evolution-api:latest
+    ports:
+      - "8080:8080"
+    environment:
+      - DATABASE_URL=postgresql://postgres:password@postgres:5432/evolution
+      - REDIS_URL=redis://redis:6379
+      - AUTHENTICATION_API_KEY=your-evolution-api-key
+      - WEBHOOK_GLOBAL_URL=http://app:3000/api/webhooks/evolution
+      - WEBHOOK_GLOBAL_ENABLED=true
+      - WEBHOOK_GLOBAL_WEBHOOK_BY_EVENTS=true
+    depends_on:
+      - postgres
+      - redis
+    volumes:
+      - evolution_data:/evolution/instances
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./ssl:/etc/nginx/ssl
+    depends_on:
+      - app
+      - evolution
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # Monitoring with Prometheus
+  prometheus:
+    image: prom/prometheus:latest
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./monitoring/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+  # Grafana Dashboard
+  grafana:
+    image: grafana/grafana:latest
+    ports:
+      - "3001:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+    volumes:
+      - grafana_data:/var/lib/grafana
+    depends_on:
+      - prometheus
+    restart: unless-stopped
+    networks:
+      - fivapp-network
+
+volumes:
+  postgres_data:
+  redis_data:
+  evolution_data:
+  prometheus_data:
+  grafana_data:
+
+networks:
+  fivapp-network:
+    driver: bridge

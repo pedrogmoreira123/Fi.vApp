@@ -1,0 +1,23 @@
+name = "waha-webhook-worker"
+main = "worker.js"
+compatibility_date = "2024-01-01"
+
+[env.production]
+name = "waha-webhook-worker"
+
+[env.staging]
+name = "waha-webhook-worker-staging"
+
+# Configurações de roteamento
+[[routes]]
+pattern = "webhook.waha.fivconnect.net/*"
+zone_name = "fivconnect.net"
+
+# Configurações de segurança
+[build]
+command = ""
+
+# Variáveis de ambiente (se necessário)
+[vars]
+WEBHOOK_URL = "https://fivconnect.net/api/webhooks/whatsapp"
+ENVIRONMENT = "production"

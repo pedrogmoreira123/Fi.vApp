@@ -14,7 +14,7 @@ import {
 } from '@/components/ui/dropdown-menu';
 import ProfileModal from '@/components/modals/profile-modal';
 import SettingsModal from '@/components/modals/settings-modal';
-import { ChevronDown, User, Settings, LogOut, Bell, Calendar, User as UserIcon } from 'lucide-react';
+import { ChevronDown, User, Settings, LogOut, Bell, Calendar, User as UserIcon, Sun, Moon } from 'lucide-react';
 
 interface HeaderProps {
   title: string;
@@ -35,6 +35,7 @@ interface Announcement {
 
 export default function Header({ title }: HeaderProps) {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false);
   const [isAnnouncementsOpen, setIsAnnouncementsOpen] = useState(false);
@@ -77,31 +78,24 @@ export default function Header({ title }: HeaderProps) {
     <>
       <header className="bg-card/95 backdrop-blur-sm border-b border-border/50 px-6 py-4 flex items-center justify-between shadow-sm">
         <div className="flex items-center space-x-4">
-          {/* Logo */}
-          <div className="flex items-center space-x-3">
-            <div className="p-2 rounded-lg bg-primary/10 shadow-sm">
-              <img
-                src={logoSrcState}
-                alt="Fi.V App"
-                className="h-6 w-auto"
-                onError={() => {
-                  if (logoSrcState !== '/logo.svg') {
-                    setLogoSrcState('/logo.svg');
-                  }
-                }}
-              />
-            </div>
-            <span className="font-bold text-lg text-foreground">Fi.V App</span>
-          </div>
-
           {/* Page Title */}
-          <div className="h-6 w-px bg-border"></div>
           <h1 className="text-xl font-semibold text-foreground" data-testid="text-page-title">
             {title}
           </h1>
         </div>
         
         <div className="flex items-center space-x-4">
+          {/* Theme Toggle */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={toggleTheme}
+            className="hover:bg-accent/50 transition-colors"
+            title={theme === 'light' ? 'Alternar para tema escuro' : 'Alternar para tema claro'}
+          >
+            {theme === 'light' ? <Moon className="h-5 w-5" /> : <Sun className="h-5 w-5" />}
+          </Button>
+
           {/* Announcements Notification */}
           <DropdownMenu open={isAnnouncementsOpen} onOpenChange={setIsAnnouncementsOpen}>
             <DropdownMenuTrigger asChild>

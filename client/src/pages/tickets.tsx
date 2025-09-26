@@ -13,6 +13,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { useT } from '@/hooks/use-translation';
 import { useMobile } from '@/hooks/use-mobile';
 import { useToast } from '@/hooks/use-toast';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
@@ -58,94 +60,39 @@ interface FilterOptions {
   dateTo: Date | undefined;
 }
 
-// Mock data
-const mockTickets: Ticket[] = [
-  {
-    id: '#65774',
-    title: 'Problema com produto',
-    description: 'Cliente relatou problema com o produto entregue',
-    status: 'open',
-    priority: 'medium',
-    assignedTo: 'Guilherme',
-    createdBy: 'System',
-    createdAt: '28/08/2025 13:08',
-    updatedAt: '28/08/2025 13:08',
-    clientName: 'Pedrito Pão Quente / Biaso',
-    clientPhone: '551199062500',
-    tags: ['Atendendo', 'Suporte Técnico', 'Não Informado']
-  },
-  {
-    id: '#65771',
-    title: 'Dúvida sobre serviço',
-    description: 'Cliente com dúvidas sobre serviços disponíveis',
-    status: 'open',
-    priority: 'medium',
-    assignedTo: 'Lúcas',
-    createdBy: 'System',
-    createdAt: '28/08/2025 16:40',
-    updatedAt: '28/08/2025 16:40',
-    clientName: 'Kaitã Sartori - THE Black Tie',
-    clientPhone: '551129404727',
-    tags: ['Atendendo', 'Suporte Técnico', 'Não Informado']
-  },
-  {
-    id: '#65770',
-    title: 'Solicitação de orçamento',
-    description: 'Cliente solicitou orçamento para evento',
-    status: 'in_progress',
-    priority: 'high',
-    assignedTo: 'Guilherme',
-    createdBy: 'System',
-    createdAt: '28/08/2025 16:44',
-    updatedAt: '28/08/2025 16:44',
-    clientName: 'Everton - Impeotto',
-    clientPhone: '551199062500',
-    tags: ['Atendendo', 'Suporte Técnico', 'Não Informado']
-  },
-  {
-    id: '#65769',
-    title: 'Atendimento finalizado',
-    description: 'Cliente teve sua solicitação atendida com sucesso',
-    status: 'closed',
-    priority: 'low',
-    assignedTo: 'Guilherme',
-    createdBy: 'Guilherme',
-    createdAt: '29/08/2025 16:40',
-    updatedAt: '29/08/2025 17:15',
-    clientName: 'Tatiana - Biasa Confeitaria',
-    clientPhone: '551790225579',
-    tags: ['Atendendo', 'Não Informado']
-  },
-  {
-    id: '#65767',
-    title: 'Atendimento cancelado',
-    description: 'Cliente não respondeu às tentativas de contato',
-    status: 'canceled',
-    priority: 'low',
-    assignedTo: 'Lúcas',
-    createdBy: 'System',
-    createdAt: '29/08/2025 10:09',
-    updatedAt: '29/08/2025 10:30',
-    clientName: 'Paulo - PastRão',
-    clientPhone: '555599201585',
-    tags: ['Atendendo', 'Suporte Técnico', 'Não Informado']
-  }
-];
+// Fetch real data from API
+const useTicketsData = () => {
+  const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
+    queryKey: ['conversations'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/conversations');
+      return response.json();
+    }
+  });
 
-const mockAgents = [
-  { id: '1', name: 'Guilherme' },
-  { id: '2', name: 'Lúcas' },
-  { id: '3', name: 'Ana Silva' },
-  { id: '4', name: 'João Santos' }
-];
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/users');
+      return response.json();
+    }
+  });
 
-const mockClients = [
-  { id: '1', name: 'Pedrito Pão Quente', phone: '551199062500' },
-  { id: '2', name: 'Kaitã Sartori', phone: '551129404727' },
-  { id: '3', name: 'Everton Impeotto', phone: '551199062500' },
-  { id: '4', name: 'Tatiana Biasa', phone: '551790225579' },
-  { id: '5', name: 'Paulo PastRão', phone: '555599201585' }
-];
+  const { data: clients = [], isLoading: isLoadingClients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/clients');
+      return response.json();
+    }
+  });
+
+  return {
+    conversations,
+    users,
+    clients,
+    isLoading: isLoadingConversations || isLoadingUsers || isLoadingClients
+  };
+};
 
 const statusLabels = {
   all: 'Todos',
@@ -182,6 +129,9 @@ export default function TicketsPage() {
   const { t } = useT();
   const isMobile = useMobile();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { conversations, users, clients, isLoading } = useTicketsData();
   
   const [activeTab, setActiveTab] = useState<TicketStatus>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -206,53 +156,91 @@ export default function TicketsPage() {
     selectedClient: ''
   });
 
+  // Create ticket mutation
+  const createTicketMutation = useMutation({
+    mutationFn: async (ticketData: any) => {
+      const response = await apiRequest('POST', '/api/conversations', ticketData);
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      toast({
+        title: "Atendimento criado!",
+        description: "O atendimento foi criado com sucesso.",
+      });
+      setShowNewTicketModal(false);
+      setNewTicket({
+        title: '',
+        description: '',
+        priority: 'medium',
+        assignedTo: '',
+        clientName: '',
+        clientPhone: '',
+        selectedClient: ''
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Erro ao criar atendimento",
+        description: error.message || "Falha ao criar atendimento",
+        variant: "destructive"
+      });
+    }
+  });
+
   // RBAC: Filter tickets based on user role
   const getFilteredTickets = () => {
-    let filteredTickets = mockTickets;
+    let filteredTickets = conversations;
 
     // Role-based filtering
-    if (user?.role !== 'admin') {
-      filteredTickets = filteredTickets.filter(ticket => 
-        ticket.assignedTo === user?.name
+    if (user?.role !== 'admin' && user?.role !== 'superadmin') {
+      filteredTickets = filteredTickets.filter(conversation => 
+        conversation.assignedAgentId === user?.id
       );
     }
 
     // Status filtering
     if (activeTab !== 'all') {
-      filteredTickets = filteredTickets.filter(ticket => ticket.status === activeTab);
+      const statusMap = {
+        'open': 'waiting',
+        'in_progress': 'in_progress',
+        'closed': 'completed',
+        'canceled': 'closed'
+      };
+      filteredTickets = filteredTickets.filter(conversation => 
+        conversation.status === statusMap[activeTab as keyof typeof statusMap]
+      );
     }
 
-    // Search filtering (ticket ID, client name, agent, phone)
+    // Search filtering (conversation ID, client name, agent, phone)
     if (searchQuery) {
-      filteredTickets = filteredTickets.filter(ticket =>
-        ticket.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.clientName.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.assignedTo.toLowerCase().includes(searchQuery.toLowerCase()) ||
-        ticket.clientPhone.includes(searchQuery)
+      filteredTickets = filteredTickets.filter(conversation =>
+        conversation.id.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conversation.contactName.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        conversation.contactPhone.includes(searchQuery)
       );
     }
 
     // Advanced filters
     if (filters.assignedTo) {
-      filteredTickets = filteredTickets.filter(ticket => 
-        ticket.assignedTo === filters.assignedTo
+      filteredTickets = filteredTickets.filter(conversation => 
+        conversation.assignedAgentId === filters.assignedTo
       );
     }
 
     if (filters.priority) {
-      filteredTickets = filteredTickets.filter(ticket => 
-        ticket.priority === filters.priority
+      filteredTickets = filteredTickets.filter(conversation => 
+        conversation.priority === filters.priority
       );
     }
 
-    // Date filtering (basic implementation)
+    // Date filtering
     if (filters.dateFrom || filters.dateTo) {
-      filteredTickets = filteredTickets.filter(ticket => {
-        const ticketDate = new Date(ticket.createdAt.split(' ')[0].split('/').reverse().join('-'));
+      filteredTickets = filteredTickets.filter(conversation => {
+        const conversationDate = new Date(conversation.createdAt);
         
-        if (filters.dateFrom && ticketDate < filters.dateFrom) return false;
-        if (filters.dateTo && ticketDate > filters.dateTo) return false;
+        if (filters.dateFrom && conversationDate < filters.dateFrom) return false;
+        if (filters.dateTo && conversationDate > filters.dateTo) return false;
         
         return true;
       });
@@ -274,15 +262,15 @@ export default function TicketsPage() {
   };
 
   const getTicketCounts = () => {
-    const userTickets = user?.role === 'admin' ? mockTickets : 
-      mockTickets.filter(ticket => ticket.assignedTo === user?.name);
+    const userTickets = user?.role === 'admin' || user?.role === 'superadmin' ? conversations : 
+      conversations.filter(conversation => conversation.assignedAgentId === user?.id);
       
     return {
       all: userTickets.length,
-      open: userTickets.filter(t => t.status === 'open').length,
+      open: userTickets.filter(t => t.status === 'waiting').length,
       in_progress: userTickets.filter(t => t.status === 'in_progress').length,
-      closed: userTickets.filter(t => t.status === 'closed').length,
-      canceled: userTickets.filter(t => t.status === 'canceled').length,
+      closed: userTickets.filter(t => t.status === 'completed').length,
+      canceled: userTickets.filter(t => t.status === 'closed').length,
     };
   };
 
@@ -299,38 +287,19 @@ export default function TicketsPage() {
     }
 
     const clientInfo = newTicketType === 'client' 
-      ? mockClients.find(c => c.id === newTicket.selectedClient)
+      ? clients.find(c => c.id === newTicket.selectedClient)
       : { name: newTicket.clientName, phone: newTicket.clientPhone };
 
-    const newTicketId = `#${Math.floor(Math.random() * 100000)}`;
-    
-    console.log('Criando novo ticket:', {
-      id: newTicketId,
-      title: newTicket.title,
-      description: newTicket.description,
+    const ticketData = {
+      contactName: clientInfo?.name || newTicket.clientName,
+      contactPhone: clientInfo?.phone || newTicket.clientPhone,
+      assignedAgentId: newTicket.assignedTo,
+      status: 'waiting',
       priority: newTicket.priority,
-      assignedTo: newTicket.assignedTo,
-      clientName: clientInfo?.name,
-      clientPhone: clientInfo?.phone || newTicket.clientPhone,
-      type: newTicketType
-    });
+      tags: [newTicket.title]
+    };
 
-    toast({
-      title: "Atendimento criado!",
-      description: `Ticket ${newTicketId} foi criado com sucesso.`,
-    });
-
-    // Reset form
-    setNewTicket({
-      title: '',
-      description: '',
-      priority: 'medium',
-      assignedTo: '',
-      clientName: '',
-      clientPhone: '',
-      selectedClient: ''
-    });
-    setShowNewTicketModal(false);
+    createTicketMutation.mutate(ticketData);
   };
 
   const clearFilters = () => {
@@ -342,6 +311,17 @@ export default function TicketsPage() {
     });
     setSearchQuery('');
   };
+
+  if (isLoading) {
+    return (
+      <div className="h-full flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-2"></div>
+          <p className="text-muted-foreground">Carregando atendimentos...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col space-y-4 md:space-y-6">
@@ -421,7 +401,7 @@ export default function TicketsPage() {
                         <SelectValue placeholder="Selecione um cliente" />
                       </SelectTrigger>
                       <SelectContent>
-                        {mockClients.map((client) => (
+                        {clients.map((client) => (
                           <SelectItem key={client.id} value={client.id}>
                             {client.name} - {client.phone}
                           </SelectItem>
@@ -463,8 +443,8 @@ export default function TicketsPage() {
                       <SelectValue placeholder="Selecione um atendente" />
                     </SelectTrigger>
                     <SelectContent>
-                      {mockAgents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.name}>
+                      {users.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
                           {agent.name}
                         </SelectItem>
                       ))}
@@ -556,8 +536,8 @@ export default function TicketsPage() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="">Todos</SelectItem>
-                      {mockAgents.map((agent) => (
-                        <SelectItem key={agent.id} value={agent.name}>
+                      {users.map((agent) => (
+                        <SelectItem key={agent.id} value={agent.id}>
                           {agent.name}
                         </SelectItem>
                       ))}
@@ -686,68 +666,81 @@ export default function TicketsPage() {
             </p>
           </div>
         ) : (
-          filteredTickets.map((ticket) => (
-            <Card key={ticket.id} className="hover:shadow-md transition-shadow cursor-pointer">
-              <CardContent className="p-4 sm:p-6">
-                <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center space-x-3 mb-2">
-                      <h3 className="font-semibold text-foreground">{ticket.id}</h3>
-                      <Badge 
-                        variant="secondary" 
-                        className={statusColors[ticket.status]}
-                      >
-                        {statusLabels[ticket.status]}
-                      </Badge>
-                      <Badge 
-                        variant="outline" 
-                        className={priorityColors[ticket.priority]}
-                      >
-                        {priorityLabels[ticket.priority]}
-                      </Badge>
-                    </div>
-                    
-                    <h4 className="font-medium text-foreground mb-1">
-                      {ticket.title}
-                    </h4>
-                    
-                    <p className="text-sm text-muted-foreground mb-1">
-                      Cliente: {ticket.clientName}
-                    </p>
-                    
-                    <p className="text-sm text-muted-foreground mb-2">
-                      Telefone: {ticket.clientPhone}
-                    </p>
-
-                    <div className="flex flex-wrap gap-1 mb-3">
-                      {ticket.tags.map((tag, index) => (
-                        <Badge key={index} variant="outline" className="text-xs">
-                          {tag}
+          filteredTickets.map((conversation) => {
+            const assignedUser = users.find(u => u.id === conversation.assignedAgentId);
+            const statusMap = {
+              'waiting': 'open',
+              'in_progress': 'in_progress', 
+              'completed': 'closed',
+              'closed': 'canceled'
+            };
+            const mappedStatus = statusMap[conversation.status as keyof typeof statusMap] || 'open';
+            
+            return (
+              <Card key={conversation.id} className="hover:shadow-md transition-shadow cursor-pointer">
+                <CardContent className="p-4 sm:p-6">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center space-x-3 mb-2">
+                        <h3 className="font-semibold text-foreground">#{conversation.id.slice(-6)}</h3>
+                        <Badge 
+                          variant="secondary" 
+                          className={statusColors[mappedStatus as keyof typeof statusColors]}
+                        >
+                          {statusLabels[mappedStatus as keyof typeof statusLabels]}
                         </Badge>
-                      ))}
+                        <Badge 
+                          variant="outline" 
+                          className={priorityColors[conversation.priority as keyof typeof priorityColors]}
+                        >
+                          {priorityLabels[conversation.priority as keyof typeof priorityLabels]}
+                        </Badge>
+                      </div>
+                      
+                      <h4 className="font-medium text-foreground mb-1">
+                        {conversation.contactName}
+                      </h4>
+                      
+                      <p className="text-sm text-muted-foreground mb-1">
+                        Cliente: {conversation.contactName}
+                      </p>
+                      
+                      <p className="text-sm text-muted-foreground mb-2">
+                        Telefone: {conversation.contactPhone}
+                      </p>
+
+                      {conversation.tags && conversation.tags.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mb-3">
+                          {conversation.tags.map((tag: string, index: number) => (
+                            <Badge key={index} variant="outline" className="text-xs">
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      )}
+
+                      <div className="flex items-center space-x-4 text-xs text-muted-foreground">
+                        <div className="flex items-center space-x-1">
+                          <User className="h-3 w-3" />
+                          <span>Atendente: {assignedUser?.name || 'Não atribuído'}</span>
+                        </div>
+                        <div className="flex items-center space-x-1">
+                          <CalendarDays className="h-3 w-3" />
+                          <span>Criado: {format(new Date(conversation.createdAt), 'dd/MM/yyyy HH:mm', { locale: ptBR })}</span>
+                        </div>
+                      </div>
                     </div>
 
-                    <div className="flex items-center space-x-4 text-xs text-muted-foreground">
-                      <div className="flex items-center space-x-1">
-                        <User className="h-3 w-3" />
-                        <span>Atendente: {ticket.assignedTo}</span>
-                      </div>
-                      <div className="flex items-center space-x-1">
-                        <CalendarDays className="h-3 w-3" />
-                        <span>Criado: {ticket.createdAt}</span>
-                      </div>
+                    <div className="flex items-center space-x-2">
+                      <Button variant="ghost" size="sm" data-testid={`button-more-${conversation.id}`}>
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
                     </div>
                   </div>
-
-                  <div className="flex items-center space-x-2">
-                    <Button variant="ghost" size="sm" data-testid={`button-more-${ticket.id}`}>
-                      <MoreHorizontal className="h-4 w-4" />
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          ))
+                </CardContent>
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -755,7 +748,7 @@ export default function TicketsPage() {
       {filteredTickets.length > 0 && (
         <div className="flex items-center justify-between border-t border-border pt-4">
           <div className="text-sm text-muted-foreground">
-            Mostrando {filteredTickets.length} de {mockTickets.length} atendimentos
+            Mostrando {filteredTickets.length} de {conversations.length} atendimentos
           </div>
           <div className="flex items-center space-x-2">
             <Button variant="outline" size="sm" disabled>

@@ -1,20 +1,51 @@
+// CRITICAL: Load environment variables FIRST
+import 'dotenv/config';
+
 import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
 const app = express();
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
 
+// 1. MIDDLEWARES ESSENCIAIS (Security & Body Parsing)
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+
+// CORS configuration
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization');
+  
+  if (req.method === 'OPTIONS') {
+    res.sendStatus(200);
+  } else {
+    next();
+  }
+});
+
+// Request logging middleware with response protection
 app.use((req, res, next) => {
   const start = Date.now();
   const path = req.path;
   let capturedJsonResponse: Record<string, any> | undefined = undefined;
+  let responseEnded = false;
 
   const originalResJson = res.json;
   res.json = function (bodyJson, ...args) {
+    if (responseEnded) {
+      console.warn('⚠️ Attempt to send response after headers sent:', path);
+      return this;
+    }
+    responseEnded = true;
     capturedJsonResponse = bodyJson;
-    return originalResJson.apply(res, [bodyJson, ...args]);
+    return originalResJson.call(this, bodyJson, ...args);
+  };
+
+  const originalEnd = res.end;
+  res.end = function(...args) {
+    responseEnded = true;
+    return originalEnd.apply(res, args);
   };
 
   res.on("finish", () => {
@@ -33,50 +64,66 @@ app.use((req, res, next) => {
     }
   });
 
+  // Attach response ended flag to request for middleware use
+  (req as any).responseEnded = () => responseEnded;
+
   next();
 });
 
 (async () => {
-  // 🚫 Temporarily disabled WhatsApp service
-    console.log("⚠️ WhatsApp service disabled temporarily");
-  // try {
-  //   const { whatsappService } = await import('./whatsapp-service');
-  //   await whatsappService.initialize();
-  // } catch (error) {
-  //   console.warn('⚠️  WhatsApp service initialization failed:', error);
-  //   console.log('💡 WhatsApp features will be unavailable until properly configured');
-  // }
-
+  console.log("🚀 Starting Fi.V App Server...");
+  
+  // 2. REGISTRAR ROTAS DA API PRIMEIRO
+  console.log("📡 Registering API routes...");
   const server = await registerRoutes(app);
-
-  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
-    const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
-
-    res.status(status).json({ message });
-    throw err;
-  });
-
-  // importantly only setup vite in development and after
-  // setting up all the other routes so the catch-all route
-  // doesn't interfere with the other routes
+  
+  // 3. MIDDLEWARE DE ARQUIVOS ESTÁTICOS (Frontend)
+  console.log("📁 Setting up static file serving...");
   if (app.get("env") === "development") {
     await setupVite(app, server);
   } else {
     serveStatic(app);
   }
+  
+  // 4. MIDDLEWARE DE TRATAMENTO DE ERROS (DEVE SER O ÚLTIMO)
+  app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
+    console.error('❌ Server Error:', err);
+    const status = err.status || err.statusCode || 500;
+    const message = err.message || "Internal Server Error";
 
-  // ALWAYS serve the app on the port specified in the environment variable PORT
-  // Other ports are firewalled. Default to 5000 if not specified.
-  // this serves both the API and the client.
-  // It is the only port that is not firewalled.
-  const port = parseInt(process.env.PORT || '5000', 10);
+    // Prevent multiple responses
+    if (!res.headersSent) {
+      res.status(status).json({ message });
+    }
+  });
+
+  // Initialize Evolution API service
+  try {
+    const { evolutionService } = await import('./evolution-service');
+    console.log('✅ Evolution API service initialized');
+  } catch (error) {
+    console.warn('⚠️  Evolution API service initialization failed:', error);
+    console.log('💡 WhatsApp features will be unavailable until Evolution API is properly configured');
+  }
+  
+  // Initialize WebSocket service
+  try {
+    const { websocketService } = await import('./websocket-service');
+    websocketService.initialize(server);
+    console.log('✅ WebSocket service initialized');
+  } catch (error) {
+    console.warn('⚠️  WebSocket service initialization failed:', error);
+  }
+
+  // 5. INICIAR O SERVIDOR
+  const port = parseInt(process.env.PORT || '3000', 10);
   server.listen({
     port,
     host: "0.0.0.0",
     reusePort: true,
-  }, async () => {
+  }, () => {
+    console.log(`✅ Server running on port ${port}`);
+    console.log(`🌍 Environment: ${app.get("env")}`);
     log(`serving on port ${port}`);
-    
   });
 })();

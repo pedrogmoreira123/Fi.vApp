@@ -74,12 +74,18 @@ export const queues = pgTable("queues", {
   name: text("name").notNull(),
   description: text("description"),
   workingHours: json("working_hours"),
+  workingDays: text("working_days").default("monday"),
   messageInsideHours: text("message_inside_hours"),
   messageOutsideHours: text("message_outside_hours"),
+  greetingMessage: text("greeting_message"),
+  chatbotEnabled: boolean("chatbot_enabled").default(false),
+  chatbotId: text("chatbot_id"),
+  allowCustomerSelection: boolean("allow_customer_selection").default(true),
   isActive: boolean("is_active").default(true),
   // Environment field to separate test from production data
   environment: text("environment", { enum: ["development", "production"] }).notNull().default("production"),
   createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
 });
 
 export const settings = pgTable("settings", {

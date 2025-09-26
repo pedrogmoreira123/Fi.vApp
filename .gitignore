@@ -1,6 +1,14 @@
-node_modules
-dist
-.DS_Store
-server/public
-vite.config.ts.*
-*.tar.gz
+# Dependências
+node_modules/
+
+# Ficheiros de build
+dist/
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Ficheiros de ambiente (MUITO IMPORTANTE)
+.env
+.env.*

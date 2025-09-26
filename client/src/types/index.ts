@@ -46,8 +46,32 @@ export interface QueueData {
   name: string;
   description: string;
   workingHours: string;
+  workingDays: string;
+  messageInsideHours: string;
+  messageOutsideHours: string;
+  greetingMessage: string;
+  chatbotEnabled: boolean;
+  chatbotId: string;
+  allowCustomerSelection: boolean;
   activeConversations: number;
   isActive: boolean;
+}
+
+export interface ChatbotData {
+  id: string;
+  name: string;
+  description: string;
+  isActive: boolean;
+  welcomeMessage: string;
+  departmentMessage: string;
+  queueMessage: string;
+  finalizationMessage: string;
+  offlineMessage: string;
+  autoReply: boolean;
+  workingHours: boolean;
+  transferToAgent: boolean;
+  maxMessagesBeforeTransfer: number;
+  responseDelay: number;
 }
 
 export interface ContactHistory {

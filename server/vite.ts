@@ -76,10 +76,21 @@ export function serveStatic(app: Express) {
     );
   }
 
-  app.use(express.static(distPath));
+  // Serve static files for non-API routes only
+  app.use((req, res, next) => {
+    // Skip if response already sent or is API route
+    if (req.path.startsWith('/api/') || res.headersSent) {
+      return next();
+    }
+    express.static(distPath)(req, res, next);
+  });
 
-  // fall through to index.html if the file doesn't exist
-  app.use("*", (_req, res) => {
+  // Catch-all route for SPA (Single Page Application) - only for non-API routes
+  app.get("*", (req, res) => {
+    // Don't serve index.html for API routes or if response already sent
+    if (req.path.startsWith('/api/') || res.headersSent) {
+      return res.status(404).json({ message: 'API route not found' });
+    }
     res.sendFile(path.resolve(distPath, "index.html"));
   });
 }

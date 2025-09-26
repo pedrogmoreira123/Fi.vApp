@@ -19,9 +19,11 @@ import "./lib/i18n"; // Initialize i18n
 const LoginPage = lazy(() => import("@/pages/login"));
 const DashboardPage = lazy(() => import("@/pages/dashboard"));
 const ConversationsPage = lazy(() => import("@/pages/conversations"));
+const EnhancedConversationsPage = lazy(() => import("@/pages/enhanced-conversations"));
 const TicketsPage = lazy(() => import("@/pages/tickets"));
 const ClientsPage = lazy(() => import("@/pages/clients"));
 const QueuesPage = lazy(() => import("@/pages/queues"));
+const ChatbotsPage = lazy(() => import("@/pages/chatbots"));
 const UsersPage = lazy(() => import("@/pages/users"));
 const AIAgentPage = lazy(() => import("@/pages/ai-agent"));
 const ChatbotHubPage = lazy(() => import("@/pages/chatbot-hub"));
@@ -111,6 +113,11 @@ function Router() {
             <ConversationsPage />
           </ProtectedRoute>
         </Route>
+        <Route path="/enhanced-conversations">
+          <ProtectedRoute>
+            <EnhancedConversationsPage />
+          </ProtectedRoute>
+        </Route>
         <Route path="/tickets">
           <ProtectedRoute>
             <TicketsPage />
@@ -124,6 +131,11 @@ function Router() {
         <Route path="/queues">
           <ProtectedRoute>
             <QueuesPage />
+          </ProtectedRoute>
+        </Route>
+        <Route path="/chatbots">
+          <ProtectedRoute>
+            <ChatbotsPage />
           </ProtectedRoute>
         </Route>
         <Route path="/users">

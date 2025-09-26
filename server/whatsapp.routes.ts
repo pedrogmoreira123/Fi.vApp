@@ -1,10 +1,15 @@
 import type { Express } from "express";
 import { createServer, type Server } from "http";
 import { storage } from "./storage";
+import { requireAuth, requireRole } from "./auth";
 
 export function setupWhatsAppRoutes(app: Express): Server {
   const CONNECTION_SERVICE_URL = process.env.CONNECTION_SERVICE_URL || 'http://localhost:3001';
   const CONNECTION_SERVICE_API_KEY = process.env.CONNECTION_SERVICE_API_KEY || '';
+  
+  console.log('🔧 WhatsApp Routes Configuration:');
+  console.log('CONNECTION_SERVICE_URL:', CONNECTION_SERVICE_URL);
+  console.log('CONNECTION_SERVICE_API_KEY:', CONNECTION_SERVICE_API_KEY ? '***SET***' : 'NOT SET');
 
   // Helper function to make requests to the connection service
   const makeConnectionServiceRequest = async (endpoint: string, method: string = 'GET', data?: any) => {
@@ -31,7 +36,7 @@ export function setupWhatsAppRoutes(app: Express): Server {
   };
 
   // POST /api/whatsapp/connect - Start WhatsApp session
-  app.post('/api/whatsapp/connect', async (req, res) => {
+  app.post('/api/whatsapp/connect', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
     try {
       const { tenantId, name } = req.body;
       
@@ -39,7 +44,7 @@ export function setupWhatsAppRoutes(app: Express): Server {
         return res.status(400).json({ message: "tenantId is required" });
       }
 
-      const result = await makeConnectionServiceRequest('/sessions/start', 'POST', {
+      const result = await makeConnectionServiceRequest('/api/sessions/start', 'POST', {
         tenantId,
         name: name || `WhatsApp Connection ${tenantId}`
       });
@@ -52,11 +57,11 @@ export function setupWhatsAppRoutes(app: Express): Server {
   });
 
   // GET /api/whatsapp/status/:tenantId - Get WhatsApp connection status
-  app.get('/api/whatsapp/status/:tenantId', async (req, res) => {
+  app.get('/api/whatsapp/status/:tenantId', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
     try {
       const { tenantId } = req.params;
       
-      const result = await makeConnectionServiceRequest(`/sessions/${tenantId}/status`);
+      const result = await makeConnectionServiceRequest(`/api/sessions/${tenantId}/status`);
       
       res.json(result);
     } catch (error: any) {
@@ -66,11 +71,11 @@ export function setupWhatsAppRoutes(app: Express): Server {
   });
 
   // DELETE /api/whatsapp/disconnect/:tenantId - Disconnect WhatsApp session
-  app.delete('/api/whatsapp/disconnect/:tenantId', async (req, res) => {
+  app.delete('/api/whatsapp/disconnect/:tenantId', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
     try {
       const { tenantId } = req.params;
       
-      const result = await makeConnectionServiceRequest(`/sessions/${tenantId}`, 'DELETE');
+      const result = await makeConnectionServiceRequest(`/api/sessions/${tenantId}`, 'DELETE');
       
       res.json(result);
     } catch (error: any) {

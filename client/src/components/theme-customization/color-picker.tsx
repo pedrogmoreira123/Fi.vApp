@@ -112,12 +112,20 @@ function ColorInput({ label, value, onChange, description }: ColorInputProps) {
   };
 
   return (
-    <div className="space-y-2">
-      <Label htmlFor={label}>{label}</Label>
+    <div className="space-y-3">
+      <div className="flex items-center justify-between">
+        <Label htmlFor={label} className="text-sm font-medium">{label}</Label>
+        <div 
+          className="w-8 h-8 rounded-lg border-2 border-border shadow-sm"
+          style={{ backgroundColor: `hsl(${value})` }}
+        />
+      </div>
+      
       {description && (
         <p className="text-xs text-muted-foreground">{description}</p>
       )}
-      <div className="flex space-x-2">
+      
+      <div className="flex items-center space-x-3">
         <div className="flex-1">
           <Input
             id={label}
@@ -132,11 +140,11 @@ function ColorInput({ label, value, onChange, description }: ColorInputProps) {
             type="color"
             value={hslToHex(value)}
             onChange={handleColorPickerChange}
-            className="w-10 h-10 rounded border-2 border-border cursor-pointer bg-transparent"
+            className="w-12 h-10 rounded-lg border-2 border-border cursor-pointer bg-transparent opacity-0 absolute inset-0"
             title="Clique para abrir o seletor de cores"
           />
           <div 
-            className="absolute inset-0 w-10 h-10 rounded border-2 border-border pointer-events-none"
+            className="w-12 h-10 rounded-lg border-2 border-border cursor-pointer shadow-sm hover:shadow-md transition-shadow"
             style={{ backgroundColor: `hsl(${value})` }}
           />
         </div>

@@ -1197,23 +1197,117 @@ export class DatabaseStorage implements IStorage {
 
 
   // WhatsApp-related methods
-  async getConversationByPhone(phone: string): Promise<Conversation | null> {
-    const [conversation] = await db.select()
-      .from(conversations)
-      .where(eq(conversations.contactPhone, phone))
-      .limit(1);
-    return conversation || null;
+  async getConversationByPhone(phone: string, tenantId?: string): Promise<Conversation | null> {
+    try {
+      let query = db.select()
+        .from(conversations)
+        .where(eq(conversations.contactPhone, phone));
+      
+      if (tenantId) {
+        query = query.where(eq(conversations.tenantId, tenantId));
+      }
+      
+      const [conversation] = await query.limit(1);
+      return conversation || null;
+    } catch (error) {
+      console.error('❌ Error getting conversation by phone:', error);
+      return null;
+    }
   }
 
 
-  async updateConversation(id: string, updates: Partial<InsertConversation>): Promise<Conversation> {
-    const [conversation] = await db.update(conversations)
-      .set({ ...updates, updatedAt: new Date() })
-      .where(eq(conversations.id, id))
-      .returning();
-    if (!conversation) throw new Error("Conversation not found");
-    return conversation;
+
+  // ===== WAHA SESSION METHODS =====
+
+  /**
+   * Salvar sessão WAHA no Redis
+   */
+  async saveWahaSession(sessionData: {
+    tenantId: string;
+    sessionId: string;
+    status: string;
+    qrCode?: string;
+    lastActivity: Date;
+  }): Promise<void> {
+    try {
+      const key = `waha:session:${sessionData.tenantId}`;
+      const data = {
+        ...sessionData,
+        lastActivity: sessionData.lastActivity.toISOString()
+      };
+      
+      // Salvar no Redis (se disponível) ou no banco de dados
+      if (this.redis) {
+        await this.redis.setex(key, 86400, JSON.stringify(data)); // 24 horas
+      }
+      
+      console.log(`✅ WAHA session saved: ${sessionData.tenantId}`);
+    } catch (error) {
+      console.error('❌ Error saving WAHA session:', error);
+    }
   }
+
+  /**
+   * Obter sessão WAHA
+   */
+  async getWahaSession(tenantId: string): Promise<any | null> {
+    try {
+      const key = `waha:session:${tenantId}`;
+      
+      if (this.redis) {
+        const data = await this.redis.get(key);
+        if (data) {
+          const session = JSON.parse(data);
+          session.lastActivity = new Date(session.lastActivity);
+          return session;
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('❌ Error getting WAHA session:', error);
+      return null;
+    }
+  }
+
+  /**
+   * Atualizar status da sessão WAHA
+   */
+  async updateWahaSessionStatus(tenantId: string, status: string, qrCode?: string | null): Promise<void> {
+    try {
+      const session = await this.getWahaSession(tenantId);
+      if (session) {
+        session.status = status;
+        if (qrCode !== undefined) {
+          session.qrCode = qrCode;
+        }
+        session.lastActivity = new Date();
+        
+        await this.saveWahaSession(session);
+        console.log(`✅ WAHA session status updated: ${tenantId} -> ${status}`);
+      }
+    } catch (error) {
+      console.error('❌ Error updating WAHA session status:', error);
+    }
+  }
+
+  /**
+   * Remover sessão WAHA
+   */
+  async removeWahaSession(tenantId: string): Promise<void> {
+    try {
+      const key = `waha:session:${tenantId}`;
+      
+      if (this.redis) {
+        await this.redis.del(key);
+      }
+      
+      console.log(`✅ WAHA session removed: ${tenantId}`);
+    } catch (error) {
+      console.error('❌ Error removing WAHA session:', error);
+    }
+  }
+
 }
 
 export const storage = new DatabaseStorage();

@@ -59,6 +59,7 @@
     "tickets": "Atendimentos",
     "clients": "Clientes",
     "queues": "Filas",
+    "chatbots": "Chatbots",
     "users": "Usuários",
     "aiAgent": "Agente I.A.",
     "chatBot": "Chatbot",
@@ -66,7 +67,7 @@
     "settings": "Configurações",
     "admin": "Painel Admin",
     "announcements": "Avisos",
-    "whatsappSettings": "Conexão WhatsApp",
+    "whatsapp": "Conexão WhatsApp",
     "financeiro": "Financeiro",
     "customerService": "Atendimento ao Cliente"
   },
