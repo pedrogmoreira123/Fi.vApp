@@ -35,7 +35,7 @@ const FeedbackPage = lazy(() => import("@/pages/feedback"));
 const FinanceiroPage = lazy(() => import("@/pages/financeiro"));
 const AdminPage = lazy(() => import("@/pages/admin"));
 const AnnouncementsPage = lazy(() => import("@/pages/announcements"));
-const WhatsAppSettingsPage = lazy(() => import("@/pages/whatsapp-settings"));
+const WhatsAppSettingsPage = lazy(() => import("@/pages/WhatsappSettings"));
 const NotFound = lazy(() => import("@/pages/not-found"));
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
