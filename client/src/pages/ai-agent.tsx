@@ -1,365 +1,216 @@
-import { useState, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
+import { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Label } from '@/components/ui/label';
-import { Switch } from '@/components/ui/switch';
-import { Textarea } from '@/components/ui/textarea';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Separator } from '@/components/ui/separator';
+import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
-import { useT } from '@/hooks/use-translation';
 import { useToast } from '@/hooks/use-toast';
-import { 
-  Bot, 
-  Brain,
-  MessageCircle, 
-  Settings2,
-  Save,
-  Info
-} from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
+import { Bot, Save, Settings, Zap } from 'lucide-react';
 
 interface AiAgentConfig {
-  id?: string;
+  id: string;
   mode: 'chatbot' | 'ai_agent';
   isEnabled: boolean;
-  // AI Agent specific fields
   geminiApiKey?: string;
   agentPrompt?: string;
-  hasApiKey?: boolean;
-  // ChatBot specific fields
   welcomeMessage?: string;
-  responseDelay?: number;
-  // General settings
-  updatedAt?: string;
+  responseDelay: number;
 }
 
-export default function AIAgentPage() {
-  const { t } = useT();
+export default function AiAgentPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-
-  const [config, setConfig] = useState<AiAgentConfig>({
-    mode: 'chatbot',
+  
+  const [config, setConfig] = useState<Partial<AiAgentConfig>>({
+    mode: 'ai_agent',
     isEnabled: false,
-    welcomeMessage: '',
     responseDelay: 3,
-    agentPrompt: '',
-    geminiApiKey: ''
+    welcomeMessage: 'Olá! Como posso ajudá-lo hoje?',
+    agentPrompt: 'Você é um assistente virtual especializado em atendimento ao cliente. Seja sempre cordial, prestativo e profissional.'
   });
 
-  // Fetch current AI agent configuration
-  const { data: apiConfig, isLoading } = useQuery({
-    queryKey: ['/api', 'ai-agent', 'config'],
+  const { data: aiConfig, isLoading } = useQuery<AiAgentConfig>({
+    queryKey: ['ai-agent-config'],
     queryFn: async () => {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch('/api/ai-agent/config', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch AI config');
-      }
+      const response = await apiRequest('GET', '/api/ai-agent-config');
       return response.json();
-    },
+    }
   });
 
-  // Update local state when API data loads
-  useEffect(() => {
-    if (apiConfig) {
-      setConfig({
-        mode: apiConfig.mode || 'chatbot',
-        isEnabled: apiConfig.isEnabled || false,
-        welcomeMessage: apiConfig.welcomeMessage || '',
-        responseDelay: apiConfig.responseDelay || 3,
-        agentPrompt: apiConfig.agentPrompt || '',
-        geminiApiKey: apiConfig.geminiApiKey || '',
-        hasApiKey: apiConfig.hasApiKey || false
-      });
-    }
-  }, [apiConfig]);
-
-  // Save configuration mutation
-  const saveConfigMutation = useMutation({
+  const saveConfig = useMutation({
     mutationFn: async (configData: Partial<AiAgentConfig>) => {
-      const token = localStorage.getItem('authToken');
-      const response = await fetch('/api/ai-agent/config', {
-        method: 'PUT',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(configData),
-      });
-      if (!response.ok) {
-        throw new Error('Failed to save AI config');
-      }
+      const response = await apiRequest('POST', '/api/ai-agent-config', configData);
       return response.json();
     },
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['ai-agent-config'] });
       toast({
         title: "Configuração salva!",
-        description: "As configurações de IA foram atualizadas com sucesso.",
+        description: "As configurações do Agente de I.A foram atualizadas.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api', 'ai-agent', 'config'] });
     },
-    onError: () => {
+    onError: (error: any) => {
       toast({
         variant: "destructive",
         title: "Erro ao salvar",
-        description: "Não foi possível salvar as configurações. Tente novamente.",
+        description: error.message || "Falha ao salvar configurações",
       });
-    },
+    }
   });
 
   const handleSave = () => {
-    // Only send relevant fields based on selected mode
-    const dataToSave: Partial<AiAgentConfig> = {
-      mode: config.mode,
-      isEnabled: config.isEnabled,
-    };
-
-    if (config.mode === 'chatbot') {
-      dataToSave.welcomeMessage = config.welcomeMessage;
-      dataToSave.responseDelay = config.responseDelay;
-    } else if (config.mode === 'ai_agent') {
-      dataToSave.agentPrompt = config.agentPrompt;
-      if (config.geminiApiKey) {
-        dataToSave.geminiApiKey = config.geminiApiKey;
-      }
-    }
-
-    saveConfigMutation.mutate(dataToSave);
+    saveConfig.mutate(config);
   };
 
-  const updateConfig = (updates: Partial<AiAgentConfig>) => {
-    setConfig(prev => ({ ...prev, ...updates }));
+  const handleToggleEnabled = (enabled: boolean) => {
+    setConfig(prev => ({ ...prev, isEnabled: enabled }));
   };
 
-  const handleModeChange = (newMode: 'chatbot' | 'ai_agent') => {
-    updateConfig({ 
-      mode: newMode,
-      // Disable when switching modes to prevent conflicts
-      isEnabled: false
-    });
+  const handleModeChange = (mode: 'chatbot' | 'ai_agent') => {
+    setConfig(prev => ({ ...prev, mode }));
   };
-
-  if (isLoading) {
-    return (
-      <div className="p-6">
-        <div className="flex items-center justify-center h-64">
-          <div className="text-center">
-            <Bot className="h-8 w-8 animate-spin mx-auto mb-2" />
-            <p>Carregando configurações...</p>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center space-x-2">
-            <Brain className="h-6 w-6" />
-            <span>Configuração de IA</span>
-          </h1>
-          <p className="text-muted-foreground mt-1">
-            Configure o modo de funcionamento da inteligência artificial
+          <h1 className="text-2xl font-bold text-foreground">Agente de I.A</h1>
+          <p className="text-muted-foreground">
+            Configure seu assistente virtual inteligente para atendimento automático
           </p>
         </div>
-        <Button 
-          onClick={handleSave} 
-          disabled={saveConfigMutation.isPending}
-          data-testid="button-save-ai-config"
-        >
-          <Save className="h-4 w-4 mr-2" />
-          {saveConfigMutation.isPending ? 'Salvando...' : 'Salvar'}
-        </Button>
+        <Badge variant={config.isEnabled ? "default" : "secondary"}>
+          {config.isEnabled ? "Ativo" : "Inativo"}
+        </Badge>
       </div>
 
-      <div className="max-w-4xl space-y-6">
-        {/* Mode Selection */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Configurações Principais */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Settings2 className="h-5 w-5" />
-              <span>Modo de Operação</span>
+            <CardTitle className="flex items-center gap-2">
+              <Settings className="h-5 w-5" />
+              Configurações Principais
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-6">
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Escolha como a inteligência artificial deve funcionar. Apenas um modo pode estar ativo por vez.
-              </p>
-              
-              <RadioGroup 
-                value={config.mode} 
-                onValueChange={(value) => handleModeChange(value as 'chatbot' | 'ai_agent')}
-                className="space-y-4"
-              >
-                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                  <RadioGroupItem value="chatbot" id="chatbot" className="mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <Bot className="h-5 w-5 text-blue-500" />
-                      <Label htmlFor="chatbot" className="text-base font-medium cursor-pointer">
-                        ChatBot
-                      </Label>
-                      <Badge variant="secondary">Simples</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      Respostas automáticas predefinidas. Ideal para mensagens de boas-vindas e direcionamento básico.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start space-x-3 p-4 border rounded-lg hover:bg-accent/50 transition-colors">
-                  <RadioGroupItem value="ai_agent" id="ai_agent" className="mt-1" />
-                  <div className="flex-1">
-                    <div className="flex items-center space-x-2">
-                      <Brain className="h-5 w-5 text-purple-500" />
-                      <Label htmlFor="ai_agent" className="text-base font-medium cursor-pointer">
-                        Agente de IA
-                      </Label>
-                      <Badge variant="secondary">Avançado</Badge>
-                    </div>
-                    <p className="text-sm text-muted-foreground mt-1">
-                      IA conversacional avançada usando Google Gemini. Capaz de entender contexto e gerar respostas dinâmicas.
-                    </p>
-                  </div>
-                </div>
-              </RadioGroup>
-            </div>
-
-            {/* Enable/Disable Toggle */}
-            <Separator />
+            {/* Status do Agente */}
             <div className="flex items-center justify-between">
               <div>
-                <h3 className="text-lg font-medium text-foreground">
-                  {config.mode === 'chatbot' ? 'Ativar ChatBot' : 'Ativar Agente de IA'}
-                </h3>
+                <Label htmlFor="enabled">Ativar Agente de I.A</Label>
                 <p className="text-sm text-muted-foreground">
-                  {config.mode === 'chatbot' 
-                    ? 'Habilitar respostas automáticas simples' 
-                    : 'Habilitar inteligência artificial avançada'
-                  }
+                  Habilite o assistente virtual para responder automaticamente
                 </p>
               </div>
               <Switch
+                id="enabled"
                 checked={config.isEnabled}
-                onCheckedChange={(checked) => updateConfig({ isEnabled: checked })}
-                data-testid="switch-ai-enabled"
+                onCheckedChange={handleToggleEnabled}
+              />
+            </div>
+
+            {/* Modo de Operação */}
+            <div className="space-y-2">
+              <Label>Modo de Operação</Label>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant={config.mode === 'ai_agent' ? 'default' : 'outline'}
+                  onClick={() => handleModeChange('ai_agent')}
+                  className="justify-start"
+                >
+                  <Bot className="h-4 w-4 mr-2" />
+                  Agente I.A
+                </Button>
+                <Button
+                  variant={config.mode === 'chatbot' ? 'default' : 'outline'}
+                  onClick={() => handleModeChange('chatbot')}
+                  className="justify-start"
+                >
+                  <Zap className="h-4 w-4 mr-2" />
+                  Chatbot
+                </Button>
+              </div>
+            </div>
+
+            {/* Chave da API */}
+            <div className="space-y-2">
+              <Label htmlFor="apiKey">Chave da API Gemini</Label>
+              <Input
+                id="apiKey"
+                type="password"
+                placeholder="Digite sua chave da API Gemini"
+                value={config.geminiApiKey || ''}
+                onChange={(e) => setConfig(prev => ({ ...prev, geminiApiKey: e.target.value }))}
+              />
+              <p className="text-sm text-muted-foreground">
+                Necessário para funcionalidade de I.A avançada
+              </p>
+            </div>
+
+            {/* Delay de Resposta */}
+            <div className="space-y-2">
+              <Label htmlFor="delay">Delay de Resposta (segundos)</Label>
+              <Input
+                id="delay"
+                type="number"
+                min="1"
+                max="30"
+                value={config.responseDelay}
+                onChange={(e) => setConfig(prev => ({ ...prev, responseDelay: parseInt(e.target.value) }))}
               />
             </div>
           </CardContent>
         </Card>
 
-        {/* Configuration based on selected mode */}
-        {config.mode === 'chatbot' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <MessageCircle className="h-5 w-5" />
-                <span>Configuração do ChatBot</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* Welcome Message */}
-              <div className="space-y-2">
-                <Label htmlFor="welcomeMessage">Mensagem de Boas-vindas</Label>
-                <Textarea
-                  id="welcomeMessage"
-                  className="h-32 resize-none"
-                  placeholder="Digite a mensagem de boas-vindas..."
-                  value={config.welcomeMessage}
-                  onChange={(e) => updateConfig({ welcomeMessage: e.target.value })}
-                  data-testid="textarea-welcome-message"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Você pode usar variáveis como {'{nome}'}, {'{protocolo}'}, {'{data}'} na sua mensagem
-                </p>
-              </div>
+        {/* Configurações de Mensagens */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Bot className="h-5 w-5" />
+              Mensagens e Comportamento
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-6">
+            {/* Mensagem de Boas-vindas */}
+            <div className="space-y-2">
+              <Label htmlFor="welcome">Mensagem de Boas-vindas</Label>
+              <Textarea
+                id="welcome"
+                placeholder="Digite a mensagem de boas-vindas..."
+                value={config.welcomeMessage || ''}
+                onChange={(e) => setConfig(prev => ({ ...prev, welcomeMessage: e.target.value }))}
+                rows={3}
+              />
+            </div>
 
-              {/* Response Delay */}
-              <div className="space-y-2">
-                <Label htmlFor="responseDelay">Atraso da Resposta (segundos)</Label>
-                <Input
-                  id="responseDelay"
-                  type="number"
-                  placeholder="3"
-                  min="1"
-                  max="30"
-                  value={config.responseDelay}
-                  onChange={(e) => updateConfig({ responseDelay: parseInt(e.target.value) || 3 })}
-                  data-testid="input-response-delay"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Tempo de espera antes de enviar respostas automáticas
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+            {/* Prompt do Agente */}
+            <div className="space-y-2">
+              <Label htmlFor="prompt">Prompt do Agente</Label>
+              <Textarea
+                id="prompt"
+                placeholder="Configure como o agente deve se comportar..."
+                value={config.agentPrompt || ''}
+                onChange={(e) => setConfig(prev => ({ ...prev, agentPrompt: e.target.value }))}
+                rows={4}
+              />
+              <p className="text-sm text-muted-foreground">
+                Instruções específicas sobre como o agente deve responder
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
 
-        {config.mode === 'ai_agent' && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Brain className="h-5 w-5" />
-                <span>Configuração do Agente de IA</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              {/* API Key Status */}
-              <div className="flex items-center space-x-2 p-3 bg-muted rounded-lg">
-                <Info className="h-4 w-4 text-blue-500" />
-                <span className="text-sm">
-                  Status da API: {config.hasApiKey ? (
-                    <Badge variant="default" className="ml-1">Configurada</Badge>
-                  ) : (
-                    <Badge variant="secondary" className="ml-1">Não configurada</Badge>
-                  )}
-                </span>
-              </div>
-
-              {/* Gemini API Key */}
-              <div className="space-y-2">
-                <Label htmlFor="geminiApiKey">Chave da API Google Gemini</Label>
-                <Input
-                  id="geminiApiKey"
-                  type="password"
-                  placeholder={config.hasApiKey ? "••••••••••••••••" : "Digite sua chave da API Gemini"}
-                  value={config.geminiApiKey}
-                  onChange={(e) => updateConfig({ geminiApiKey: e.target.value })}
-                  data-testid="input-gemini-api-key"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Obtenha sua chave em: https://makersuite.google.com/app/apikey
-                </p>
-              </div>
-
-              {/* Agent Prompt */}
-              <div className="space-y-2">
-                <Label htmlFor="agentPrompt">Prompt do Agente</Label>
-                <Textarea
-                  id="agentPrompt"
-                  className="h-40 resize-none"
-                  placeholder="Você é um assistente virtual especializado em atendimento ao cliente. Seja sempre educado, prestativo e profissional..."
-                  value={config.agentPrompt}
-                  onChange={(e) => updateConfig({ agentPrompt: e.target.value })}
-                  data-testid="textarea-agent-prompt"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Define como o agente de IA deve se comportar e responder aos clientes
-                </p>
-              </div>
-            </CardContent>
-          </Card>
-        )}
+      {/* Botão Salvar */}
+      <div className="flex justify-end">
+        <Button onClick={handleSave} disabled={saveConfig.isPending}>
+          <Save className="h-4 w-4 mr-2" />
+          {saveConfig.isPending ? 'Salvando...' : 'Salvar Configurações'}
+        </Button>
       </div>
     </div>
   );

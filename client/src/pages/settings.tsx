@@ -149,16 +149,11 @@ export default function SettingsPage() {
 
       <Tabs defaultValue="appearance" className="space-y-6">
         <div className="overflow-x-auto">
-          <TabsList className="grid w-full min-w-fit grid-cols-4 h-auto p-1">
+          <TabsList className="grid w-full min-w-fit grid-cols-3 h-auto p-1">
             <TabsTrigger value="appearance" className="flex items-center justify-center space-x-1 p-2 sm:space-x-2 sm:px-4">
               <Palette className="h-4 w-4 flex-shrink-0" />
               <span className="hidden sm:inline">Personalização</span>
               <span className="sm:hidden text-xs">Tema</span>
-            </TabsTrigger>
-            <TabsTrigger value="notifications" className="flex items-center justify-center space-x-1 p-2 sm:space-x-2 sm:px-4">
-              <Bell className="h-4 w-4 flex-shrink-0" />
-              <span className="hidden sm:inline">Notificações</span>
-              <span className="sm:hidden text-xs">Notif</span>
             </TabsTrigger>
             <TabsTrigger value="quick-replies" className="flex items-center justify-center space-x-1 p-2 sm:space-x-2 sm:px-4">
               <Zap className="h-4 w-4 flex-shrink-0" />
@@ -222,6 +217,50 @@ export default function SettingsPage() {
                         accept="image/*"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
+                          if (file) {
+                            // Validate file size (2MB limit)
+                            if (file.size > 2 * 1024 * 1024) {
+                              toast({
+                                variant: "destructive",
+                                title: "Arquivo muito grande",
+                                description: "O arquivo deve ter no máximo 2MB.",
+                              });
+                              return;
+                            }
+                            
+                            // Validate file type
+                            if (!file.type.startsWith('image/')) {
+                              toast({
+                                variant: "destructive",
+                                title: "Tipo de arquivo inválido",
+                                description: "Por favor, selecione apenas imagens.",
+                              });
+                              return;
+                            }
+                            
+                            try {
+                              // Convert to base64
+                              const reader = new FileReader();
+                              reader.onload = (event) => {
+                                const base64 = event.target?.result as string;
+                                setLocalSettings(prev => ({
+                                  ...prev,
+                                  theme: { ...prev.theme, companyLogo: base64 }
+                                }));
+                                toast({
+                                  title: "Logo carregada!",
+                                  description: "A logo foi carregada com sucesso.",
+                                });
+                              };
+                              reader.readAsDataURL(file);
+                            } catch (error) {
+                              toast({
+                                variant: "destructive",
+                                title: "Erro ao carregar logo",
+                                description: "Não foi possível processar o arquivo.",
+                              });
+                            }
+                          }
                           if (!file) return;
                           const reader = new FileReader();
                           reader.onload = async () => {
@@ -294,165 +333,6 @@ export default function SettingsPage() {
           </Card>
         </TabsContent>
 
-        {/* Notifications Tab */}
-        <TabsContent value="notifications" className="space-y-6">
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center space-x-2">
-                <Bell className="h-5 w-5" />
-                <span>Central de Notificações</span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Notificações Persistentes</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Alertas contínuos para tickets pendentes
-                    </p>
-                  </div>
-                  <Switch
-                    checked={localSettings.notifications.persistent}
-                    onCheckedChange={(value) => handleNotificationChange('persistent', value)}
-                    data-testid="switch-persistent-notifications"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Notificações Pop-up</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Suporte para notificações push no Android
-                    </p>
-                  </div>
-                  <Switch
-                    checked={localSettings.notifications.desktop}
-                    onCheckedChange={(value) => handleNotificationChange('desktop', value)}
-                    data-testid="switch-popup-notifications"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Notificações do Navegador</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Ativação através do navegador
-                    </p>
-                  </div>
-                  <Switch
-                    checked={localSettings.notifications.browser}
-                    onCheckedChange={(value) => handleNotificationChange('browser', value)}
-                    data-testid="switch-browser-notifications"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h4 className="font-medium">Sons de Notificação</h4>
-                    <p className="text-sm text-muted-foreground">
-                      Alertas sonoros para novas mensagens
-                    </p>
-                  </div>
-                  <Switch
-                    checked={localSettings.notifications.sound}
-                    onCheckedChange={(value) => handleNotificationChange('sound', value)}
-                    data-testid="switch-sound-notifications"
-                  />
-                </div>
-
-                {/* Configurações Específicas de Som */}
-                {localSettings.notifications.sound && (
-                  <div className="ml-6 space-y-4 border-l-2 border-muted pl-4">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Som de Conversas</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Som de notificação para novas conversas (BIP)
-                        </p>
-                      </div>
-                      <Switch
-                        checked={localSettings.notifications.conversationSound}
-                        onCheckedChange={(value) => handleNotificationChange('conversationSound', value)}
-                        data-testid="switch-conversation-sound"
-                      />
-                    </div>
-
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <h4 className="font-medium">Som de Espera</h4>
-                        <p className="text-sm text-muted-foreground">
-                          Som para conversas em fila de espera
-                        </p>
-                      </div>
-                      <Switch
-                        checked={localSettings.notifications.waitingSound}
-                        onCheckedChange={(value) => handleNotificationChange('waitingSound', value)}
-                        data-testid="switch-waiting-sound"
-                      />
-                    </div>
-
-                    {localSettings.notifications.waitingSound && (
-                      <div className="ml-6">
-                        <Label className="text-sm font-medium">Tipo de Som para Espera</Label>
-                        <Select
-                          value={localSettings.notifications.waitingSoundType}
-                          onValueChange={(value) => handleNotificationChange('waitingSoundType', value)}
-                        >
-                          <SelectTrigger className="mt-2">
-                            <SelectValue placeholder="Selecione o tipo" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="bip">Apenas BIP</SelectItem>
-                            <SelectItem value="constant">Som Constante</SelectItem>
-                          </SelectContent>
-                        </Select>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {localSettings.notifications.waitingSoundType === 'constant' 
-                            ? 'Som contínuo a cada 2 segundos enquanto houver conversas em espera'
-                            : 'Som único quando nova conversa entra na fila de espera'
-                          }
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Configurações de Alerta</CardTitle>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="alert-frequency">Frequência de Alertas</Label>
-                  <Select>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione a frequência" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="immediate">Imediato</SelectItem>
-                      <SelectItem value="1min">A cada minuto</SelectItem>
-                      <SelectItem value="5min">A cada 5 minutos</SelectItem>
-                      <SelectItem value="15min">A cada 15 minutos</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quiet-hours">Horário Silencioso</Label>
-                  <Input
-                    id="quiet-hours"
-                    placeholder="22:00 - 08:00"
-                    data-testid="input-quiet-hours"
-                  />
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
 
 
         {/* APIs Externas Tab */}

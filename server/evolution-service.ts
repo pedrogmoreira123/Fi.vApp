@@ -6,8 +6,8 @@ export class EvolutionService {
   private evolutionApiKey: string;
 
   constructor() {
-    this.evolutionApiUrl = process.env.EVOLUTION_API_URL || 'http://localhost:8081';
-    this.evolutionApiKey = process.env.EVOLUTION_API_KEY || 'evolution-api-key-2024-secure';
+    this.evolutionApiUrl = process.env.EVOLUTION_API_URL || 'http://45.143.7.93:8080';
+    this.evolutionApiKey = process.env.EVOLUTION_API_KEY || 'BQYHJGJHJ';
     
     console.log('🔧 Evolution API Service Configuration:');
     console.log('EVOLUTION_API_URL:', this.evolutionApiUrl);
@@ -157,7 +157,7 @@ export class EvolutionService {
       
       return {
         success: true,
-        status: response.instance.connectionState,
+        status: response.instance.state,
         qrCode: response.instance.qrcode?.base64,
         message: 'Instance info retrieved successfully'
       };
@@ -293,7 +293,7 @@ export class EvolutionService {
     try {
       const instanceName = tenantId;
       
-      const response = await this.makeEvolutionRequest(`/instance/qrcode/${instanceName}`, 'GET');
+      const response = await this.makeEvolutionRequest(`/instance/connect/${instanceName}`, 'GET');
       
       return {
         success: true,

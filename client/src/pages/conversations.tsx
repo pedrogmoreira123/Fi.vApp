@@ -84,6 +84,54 @@ export default function ConversationsPage() {
     updateSoundSettings 
   } = useSound();
 
+  // Send message function
+  const sendMessage = async (conversationId: string, message: string, to: string) => {
+    try {
+      const response = await apiRequest('POST', `/api/conversations/${conversationId}/send-message`, {
+        text: message,
+        to: to
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Refresh messages
+          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to send message:', error);
+      return false;
+    }
+  };
+
+  // Send media function
+  const sendMedia = async (conversationId: string, to: string, type: string, url: string, caption?: string) => {
+    try {
+      const response = await apiRequest('POST', `/api/conversations/${conversationId}/send-media`, {
+        to: to,
+        type: type,
+        url: url,
+        caption: caption
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        if (result.success) {
+          // Refresh messages
+          queryClient.invalidateQueries({ queryKey: ['messages', conversationId] });
+          return true;
+        }
+      }
+      return false;
+    } catch (error) {
+      console.error('Failed to send media:', error);
+      return false;
+    }
+  };
+
   // Fetch quick replies
   const { data: quickReplies = [] } = useQuery({
     queryKey: ['/api/quick-replies'],
@@ -117,24 +165,20 @@ export default function ConversationsPage() {
     if (!newMessage.trim() || !selectedConversation) return;
 
     try {
-      // Send message via WhatsApp API
-      const response = await apiRequest('POST', `/api/conversations/${selectedConversation.id}/send-message`, {
-        text: newMessage.trim(),
-        to: selectedConversation.contactPhone
-      });
+      // Send message via Evolution API
+      const success = await sendMessage(
+        selectedConversation.id,
+        newMessage.trim(),
+        selectedConversation.contactPhone
+      );
 
-      if (response.ok) {
+      if (success) {
         // Clear input and close quick replies
         setNewMessage('');
         setShowQuickReplies(false);
         
         // Play notification sound for sent message
         playNotificationSound('conversation');
-        
-        // Refresh messages to show the sent message
-        queryClient.invalidateQueries({ queryKey: ['messages', selectedConversation.id] });
-      } else {
-        throw new Error('Failed to send message');
       }
     } catch (error) {
       console.error('Error sending message:', error);
@@ -147,12 +191,47 @@ export default function ConversationsPage() {
     setShowQuickReplies(false);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
+    if (file && selectedConversation) {
       setFileUpload(file);
-      // Handle file upload logic here
-      console.log('File selected:', file.name);
+      
+      try {
+        // Upload file to server first
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const uploadResponse = await apiRequest('POST', '/api/upload', formData);
+        if (uploadResponse.ok) {
+          const uploadResult = await uploadResponse.json();
+          const fileUrl = uploadResult.url;
+          
+          // Determine media type
+          let mediaType = 'document';
+          if (file.type.startsWith('image/')) mediaType = 'image';
+          else if (file.type.startsWith('video/')) mediaType = 'video';
+          else if (file.type.startsWith('audio/')) mediaType = 'audio';
+          
+          // Send media via Evolution API
+          const success = await sendMedia(
+            selectedConversation.id,
+            selectedConversation.contactPhone,
+            mediaType,
+            fileUrl,
+            file.name
+          );
+          
+          if (success) {
+            setFileUpload(null);
+            // Play notification sound
+            if (!soundSettings.muteConversations) {
+              playNotificationSound('conversation');
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Failed to upload and send media:', error);
+      }
     }
   };
 
@@ -300,7 +379,7 @@ export default function ConversationsPage() {
                     key={conversation.id}
                     onClick={() => handleSelectConversation(conversation)}
                     className={`p-3 border-b border-border cursor-pointer hover:bg-accent transition-colors ${
-                      selectedConversation.id === conversation.id ? 'bg-accent' : ''
+                      selectedConversation?.id === conversation.id ? 'bg-accent' : ''
                     }`}
                     data-testid={`conversation-${conversation.id}`}
                   >
@@ -316,7 +395,7 @@ export default function ConversationsPage() {
                             {conversation.contactName}
                           </h3>
                           <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {conversation.timestamp.split(' ')[1] || ''}
+                            {conversation.timestamp ? conversation.timestamp.split(' ')[1] || '' : ''}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
@@ -353,7 +432,7 @@ export default function ConversationsPage() {
                     key={conversation.id}
                     onClick={() => handleSelectConversation(conversation)}
                     className={`p-3 border-b border-border cursor-pointer hover:bg-accent transition-colors ${
-                      selectedConversation.id === conversation.id ? 'bg-accent' : ''
+                      selectedConversation?.id === conversation.id ? 'bg-accent' : ''
                     }`}
                     data-testid={`waiting-${conversation.id}`}
                   >
@@ -372,7 +451,7 @@ export default function ConversationsPage() {
                             {conversation.contactName}
                           </h3>
                           <span className="text-xs text-muted-foreground flex-shrink-0">
-                            {conversation.timestamp.split(' ')[1]}
+                            {conversation.timestamp ? conversation.timestamp.split(' ')[1] || '' : ''}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">

@@ -2,9 +2,8 @@ import { Router } from 'express';
 import { Request, Response } from 'express';
 import { logger } from '../config/logger';
 import userRoutes from './user.routes';
-// Import other route modules as they are created
-// import whatsappRoutes from './whatsapp.routes';
-// import evolutionRoutes from './evolution.routes';
+import whatsappRoutes from './whatsapp.routes';
+import webhookRoutes from './webhook.routes';
 
 const router = Router();
 
@@ -29,8 +28,8 @@ router.get('/version', (req: Request, res: Response) => {
 
 // Mount route modules
 router.use('/users', userRoutes);
-// router.use('/whatsapp', whatsappRoutes);
-// router.use('/evolution', evolutionRoutes);
+router.use('/whatsapp', whatsappRoutes);
+router.use('/webhooks', webhookRoutes);
 
 // API documentation endpoint
 router.get('/docs', (req: Request, res: Response) => {
@@ -49,6 +48,20 @@ router.get('/docs', (req: Request, res: Response) => {
         getUserById: 'GET /api/users/users/:id',
         updateUser: 'PUT /api/users/users/:id',
         deleteUser: 'DELETE /api/users/users/:id',
+      },
+      whatsapp: {
+        instance: 'GET /api/whatsapp/instance',
+        qrcode: 'GET /api/whatsapp/instance/:id/qrcode',
+        status: 'GET /api/whatsapp/instance/:id/status',
+        connect: 'POST /api/whatsapp/instance/:id/connect',
+        disconnect: 'DELETE /api/whatsapp/instance/:id',
+        sendMessage: 'POST /api/whatsapp/conversations/:id/send-message',
+        sendMedia: 'POST /api/whatsapp/conversations/:id/send-media',
+        health: 'GET /api/whatsapp/health',
+      },
+      webhooks: {
+        evolution: 'POST /api/webhooks/evolution',
+        health: 'GET /api/webhooks/evolution/health',
       },
     },
   });

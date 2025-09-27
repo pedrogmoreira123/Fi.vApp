@@ -244,6 +244,8 @@ export const payments = pgTable("payments", {
 export const insertUserSchema = createInsertSchema(users).omit({
   id: true,
   createdAt: true,
+}).extend({
+  companyId: z.string().optional(),
 });
 
 export const insertClientSchema = createInsertSchema(clients).omit({

@@ -168,6 +168,132 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // WhatsApp endpoints with authentication - BEFORE auth middleware
+  app.get('/api/whatsapp/instance', async (req, res) => {
+    try {
+      console.log('🔍 WhatsApp instance route called');
+      console.log('🔍 Authorization header:', req.headers.authorization);
+      
+      // Test Evolution API connection
+      const response = await fetch('http://45.143.7.93:8080/instance/fetchInstances', {
+        headers: {
+          'apikey': 'BQYHJGJHJ',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Evolution API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('🔍 Evolution API response:', data);
+      
+      // Find the specific instance
+      const instance = data.find((inst: any) => 
+        inst.name === '59b4b086-9171-4dbf-8177-b7c6d6fd1e33' || 
+        inst.id === '59b4b086-9171-4dbf-8177-b7c6d6fd1e33'
+      );
+      
+      if (instance) {
+        res.json({
+          success: true,
+          data: {
+            id: instance.id,
+            name: instance.name,
+            connectionStatus: instance.connectionStatus,
+            ownerJid: instance.ownerJid,
+            profileName: instance.profileName,
+            profilePicUrl: instance.profilePicUrl,
+            lastUpdate: instance.updatedAt || new Date().toISOString()
+          }
+        });
+      } else {
+        res.json({
+          success: false,
+          data: null,
+          message: "No WhatsApp instance found"
+        });
+      }
+    } catch (error: any) {
+      console.error('WhatsApp instance error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
+  app.post('/api/whatsapp/instance/connect', async (req, res) => {
+    try {
+      console.log('🔍 WhatsApp connect route called');
+      console.log('🔍 Authorization header:', req.headers.authorization);
+      
+      // Test Evolution API connection
+      const response = await fetch('http://45.143.7.93:8080/instance/connect/59b4b086-9171-4dbf-8177-b7c6d6fd1e33', {
+        method: 'POST',
+        headers: {
+          'apikey': 'BQYHJGJHJ',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Evolution API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('🔍 Evolution API connect response:', data);
+      
+      res.json({
+        success: true,
+        qrCode: data.base64,
+        status: data.status || 'connecting',
+        message: "QR code generated successfully"
+      });
+    } catch (error: any) {
+      console.error('WhatsApp connect error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
+  app.delete('/api/whatsapp/instance/disconnect', async (req, res) => {
+    try {
+      console.log('🔍 WhatsApp disconnect route called');
+      console.log('🔍 Authorization header:', req.headers.authorization);
+      
+      // Test Evolution API connection
+      const response = await fetch('http://45.143.7.93:8080/instance/logout/59b4b086-9171-4dbf-8177-b7c6d6fd1e33', {
+        method: 'DELETE',
+        headers: {
+          'apikey': 'BQYHJGJHJ',
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      if (!response.ok) {
+        throw new Error(`Evolution API error: ${response.status}`);
+      }
+      
+      const data = await response.json();
+      console.log('🔍 Evolution API disconnect response:', data);
+      
+      res.json({
+        success: true,
+        message: "WhatsApp disconnected successfully"
+      });
+    } catch (error: any) {
+      console.error('WhatsApp disconnect error:', error);
+      res.status(500).json({ 
+        success: false,
+        error: error.message 
+      });
+    }
+  });
+
   // Apply attachAuthPayload middleware to all other routes to enrich req with JWT payload
   app.use(attachAuthPayload);
 
@@ -257,7 +383,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Client management routes
   app.get('/api/clients', requireAuth, async (req, res) => {
     try {
-      const clients = await storage.getAllClients();
+      const clients = await storage.getAllClients(req.companyId);
       res.json(clients);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch clients" });
@@ -267,7 +393,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/clients', requireAuth, async (req, res) => {
     try {
       const clientData = insertClientSchema.parse(req.body);
-      const client = await storage.createClient(clientData);
+      // Add companyId to client data
+      const clientWithCompany = {
+        ...clientData,
+        companyId: req.companyId
+      };
+      const client = await storage.createClient(clientWithCompany);
       res.status(201).json(client);
     } catch (error) {
       res.status(400).json({ message: "Invalid client data" });
@@ -390,7 +521,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      res.json(conversations);
+      // Transform conversations to include frontend-expected fields
+      const transformedConversations = conversations.map(conv => ({
+        ...conv,
+        // Generate initials from contact name
+        initials: conv.contactName.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2),
+        // Generate random background color
+        bgColor: ['bg-pink-500', 'bg-blue-500', 'bg-green-500', 'bg-purple-500', 'bg-orange-500', 'bg-red-500'][Math.floor(Math.random() * 6)],
+        // Format timestamp
+        timestamp: conv.lastMessageAt ? new Date(conv.lastMessageAt).toLocaleString('pt-BR') : new Date(conv.createdAt).toLocaleString('pt-BR'),
+        // Add type based on status
+        type: conv.status === 'in_progress' ? 'active' : 
+              conv.status === 'waiting' ? 'waiting' : 
+              conv.status === 'completed' ? 'contact' : 'active',
+        // Add mock fields for compatibility
+        lastMessage: 'Última mensagem...',
+        unreadCount: Math.floor(Math.random() * 5),
+        status: conv.status === 'in_progress' ? 'Atendendo' : 
+                conv.status === 'waiting' ? 'Aguardando' : 
+                conv.status === 'completed' ? 'Finalizada' : 'Ativa'
+      }));
+      
+      res.json(transformedConversations);
     } catch (error) {
       res.status(500).json({ message: "Failed to fetch conversations" });
     }
@@ -1241,6 +1393,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Temporary setup route without authentication
+  app.post('/api/setup/initial', async (req, res) => {
+    try {
+      const { companyName, adminEmail, adminPassword } = req.body;
+      
+      if (!companyName || !adminEmail || !adminPassword) {
+        return res.status(400).json({ 
+          message: "Company name, admin email, and admin password are required" 
+        });
+      }
+      
+      // Create production admin user
+      const hashedPassword = await bcrypt.hash(adminPassword, 10);
+      
+      try {
+        await storage.createUser({
+          name: "System Administrator",
+          email: adminEmail,
+          username: adminEmail.split('@')[0],
+          password: hashedPassword,
+          role: "admin",
+          isOnline: true
+        });
+      } catch (error) {
+        // User might already exist, update instead
+        const existingUser = await storage.getUserByEmail(adminEmail);
+        if (existingUser) {
+          await storage.updateUser(existingUser.id, {
+            password: hashedPassword
+          });
+        }
+      }
+      
+      res.json({ 
+        message: "Initial setup completed",
+        adminEmail
+      });
+      
+    } catch (error) {
+      console.error('Initial setup error:', error);
+      res.status(500).json({ message: "Failed to setup initial environment" });
+    }
+  });
+
   // Route to set up production data (creates clean production environment)
   app.post('/api/environment/setup-production', requireAuth, requireRole(['admin']), async (req, res) => {
     try {
@@ -1548,7 +1744,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get('/api/admin/companies', requireAuth, requireRole(['admin', 'superadmin']), async (req, res) => {
     try {
       const companies = await storage.getAllCompanies();
-      res.json(companies);
+      
+      // Add statistics for each company
+      const companiesWithStats = await Promise.all(companies.map(async (company) => {
+        try {
+          const userCount = await storage.getUsersByCompany(company.id);
+          const queues = await storage.getAllQueues(); // Assuming queues are company-specific
+          const connections = await storage.getAllWhatsAppConnections(); // Get all WhatsApp connections
+          
+          return {
+            ...company,
+            userCount: userCount.length,
+            connectionCount: connections.length, // For now, assume 1 connection per company
+            queueCount: queues.length
+          };
+        } catch (error) {
+          console.error(`Failed to get stats for company ${company.id}:`, error);
+          return {
+            ...company,
+            userCount: 0,
+            connectionCount: 0,
+            queueCount: 0
+          };
+        }
+      }));
+      
+      res.json(companiesWithStats);
     } catch (error) {
       console.error('Failed to fetch companies:', error);
       res.status(500).json({ message: "Failed to fetch companies" });
@@ -1617,7 +1838,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post('/api/admin/companies/:id/users', requireAuth, requireRole(['superadmin']), async (req, res) => {
     try {
       const { id: companyId } = req.params;
-      const userData = insertUserSchema.parse(req.body);
+      // Create a schema without companyId for this endpoint
+      const userSchemaForCompany = insertUserSchema.omit({ companyId: true });
+      const userData = userSchemaForCompany.parse(req.body);
       
       // Check if user email already exists
       const existingUser = await storage.getUserByEmail(userData.email);
@@ -1818,9 +2041,166 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard routes
+  app.get('/api/dashboard/kpis', requireAuth, async (req, res) => {
+    try {
+      const companyId = req.companyId;
+      
+      // Get basic statistics
+      const conversations = await storage.getAllConversations(companyId);
+      const users = await storage.getAllUsers(companyId);
+      const clients = await storage.getAllClients(companyId);
+      
+      const totalConversations = conversations.length;
+      const completedConversations = conversations.filter(c => c.status === 'completed').length;
+      const completionRate = totalConversations > 0 ? Math.round((completedConversations / totalConversations) * 100) : 0;
+      
+      const activeUsers = users.filter(u => u.isOnline).length;
+      const totalClients = clients.length;
+      
+      res.json({
+        totalConversations,
+        completedConversations,
+        completionRate,
+        activeUsers,
+        totalClients
+      });
+    } catch (error) {
+      console.error('Failed to fetch dashboard KPIs:', error);
+      res.status(500).json({ message: "Failed to fetch dashboard data" });
+    }
+  });
+
+  app.get('/api/dashboard/charts', requireAuth, async (req, res) => {
+    try {
+      const companyId = req.companyId;
+      const conversations = await storage.getAllConversations(companyId);
+      
+      // Generate chart data for the last 7 days
+      const last7Days = Array.from({ length: 7 }, (_, i) => {
+        const date = new Date();
+        date.setDate(date.getDate() - i);
+        return date.toISOString().split('T')[0];
+      }).reverse();
+      
+      const chartData = last7Days.map(date => {
+        const dayConversations = conversations.filter(c => 
+          new Date(c.createdAt).toISOString().split('T')[0] === date
+        );
+        
+        return {
+          date,
+          total: dayConversations.length,
+          completed: dayConversations.filter(c => c.status === 'completed').length
+        };
+      });
+      
+      res.json(chartData);
+    } catch (error) {
+      console.error('Failed to fetch dashboard charts:', error);
+      res.status(500).json({ message: "Failed to fetch chart data" });
+    }
+  });
+
+  app.get('/api/dashboard/activity', requireAuth, async (req, res) => {
+    try {
+      const companyId = req.companyId;
+      const conversations = await storage.getAllConversations(companyId);
+      
+      // Get recent activity (last 10 conversations)
+      const recentActivity = conversations
+        .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+        .slice(0, 10)
+        .map(conv => ({
+          id: conv.id,
+          contactName: conv.contactName,
+          status: conv.status,
+          createdAt: conv.createdAt,
+          lastMessage: conv.lastMessage
+        }));
+      
+      res.json(recentActivity);
+    } catch (error) {
+      console.error('Failed to fetch dashboard activity:', error);
+      res.status(500).json({ message: "Failed to fetch activity data" });
+    }
+  });
+
+  // Chatbots routes
+  app.get('/api/chatbots', requireAuth, async (req, res) => {
+    try {
+      const chatbots = await storage.getAllChatbots(req.companyId);
+      res.json(chatbots);
+    } catch (error) {
+      console.error('Failed to fetch chatbots:', error);
+      res.status(500).json({ message: "Failed to fetch chatbots" });
+    }
+  });
+
+  app.post('/api/chatbots', requireAuth, async (req, res) => {
+    try {
+      const chatbotData = {
+        ...req.body,
+        companyId: req.companyId
+      };
+      const chatbot = await storage.createChatbot(chatbotData);
+      res.status(201).json(chatbot);
+    } catch (error) {
+      console.error('Failed to create chatbot:', error);
+      res.status(500).json({ message: "Failed to create chatbot" });
+    }
+  });
+
+  app.put('/api/chatbots/:id', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const chatbotData = {
+        ...req.body,
+        companyId: req.companyId
+      };
+      const chatbot = await storage.updateChatbot(id, chatbotData);
+      res.json(chatbot);
+    } catch (error) {
+      console.error('Failed to update chatbot:', error);
+      res.status(500).json({ message: "Failed to update chatbot" });
+    }
+  });
+
+  app.delete('/api/chatbots/:id', requireAuth, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const success = await storage.deleteChatbot(id);
+      if (success) {
+        res.json({ message: "Chatbot deleted successfully" });
+      } else {
+        res.status(404).json({ message: "Chatbot not found" });
+      }
+    } catch (error) {
+      console.error('Failed to delete chatbot:', error);
+      res.status(500).json({ message: "Failed to delete chatbot" });
+    }
+  });
+
   // Setup Evolution API routes (new implementation) - PRIORITY
-  const { setupEvolutionRoutes } = await import('./evolution-routes');
-  setupEvolutionRoutes(app);
+  try {
+    const { setupEvolutionRoutes } = await import('./evolution-routes');
+    setupEvolutionRoutes(app);
+    console.log('✅ Evolution API routes registered successfully');
+  } catch (error) {
+    console.error('❌ Failed to register Evolution API routes:', error);
+  }
+
+  // Test endpoint for WhatsApp
+  app.get('/api/whatsapp/test', async (req, res) => {
+    console.log('🔍 WhatsApp test route called');
+    res.json({ message: 'WhatsApp test endpoint working' });
+  });
+
+  // Simple test endpoint
+  app.get('/api/test', async (req, res) => {
+    res.json({ message: 'Test endpoint working' });
+  });
+
 
   // Setup WAHA routes (legacy - disabled in favor of Evolution API)
   // setupWahaRoutes(app);

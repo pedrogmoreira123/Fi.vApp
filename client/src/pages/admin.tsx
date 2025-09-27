@@ -56,6 +56,7 @@ type UserForm = z.infer<typeof userSchema>;
 interface CompanyWithStats extends Company {
   userCount?: number;
   connectionCount?: number;
+  queueCount?: number;
 }
 
 export default function AdminPanel() {
@@ -137,7 +138,7 @@ export default function AdminPanel() {
   // Create user mutation
   const userMutation = useMutation({
     mutationFn: async (data: UserForm) => {
-      return await apiRequest('POST', '/api/users', { ...data, companyId: selectedCompany?.id });
+      return await apiRequest('POST', `/api/admin/companies/${selectedCompany?.id}/users`, data);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ 
@@ -242,16 +243,17 @@ export default function AdminPanel() {
   }
 
   return (
-    <div className="p-6 space-y-6" data-testid="admin-panel">
+    <div className="p-3 sm:p-4 md:p-6 space-y-4 md:space-y-6" data-testid="admin-panel">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight">Painel do Administrador</h1>
-          <p className="text-muted-foreground">Gerencie as empresas e seus usuários</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">Painel do Administrador</h1>
+          <p className="text-muted-foreground text-sm sm:text-base">Gerencie as empresas e seus usuários</p>
         </div>
         <Button 
           onClick={handleCreateCompany}
           data-testid="button-create-company"
+          className="w-full sm:w-auto"
         >
           <Plus className="mr-2 h-4 w-4" />
           Nova Empresa
@@ -259,26 +261,26 @@ export default function AdminPanel() {
       </div>
 
       {/* Stats Overview */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center">
               <Building2 className="h-4 w-4 text-muted-foreground" />
               <div className="ml-2">
-                <p className="text-sm font-medium text-muted-foreground">Total de Empresas</p>
-                <p className="text-2xl font-bold">{companies.length}</p>
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Total de Empresas</p>
+                <p className="text-xl md:text-2xl font-bold">{companies.length}</p>
               </div>
             </div>
           </CardContent>
         </Card>
         
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center">
               <TrendingUp className="h-4 w-4 text-green-600" />
               <div className="ml-2">
-                <p className="text-sm font-medium text-muted-foreground">Ativas</p>
-                <p className="text-2xl font-bold text-green-600">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Ativas</p>
+                <p className="text-xl md:text-2xl font-bold text-green-600">
                   {companies.filter((c: Company) => c.status === 'active').length}
                 </p>
               </div>
@@ -287,12 +289,12 @@ export default function AdminPanel() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center">
               <AlertCircle className="h-4 w-4 text-blue-600" />
               <div className="ml-2">
-                <p className="text-sm font-medium text-muted-foreground">Em Teste</p>
-                <p className="text-2xl font-bold text-blue-600">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Em Teste</p>
+                <p className="text-xl md:text-2xl font-bold text-blue-600">
                   {companies.filter((c: Company) => c.status === 'trial').length}
                 </p>
               </div>
@@ -301,12 +303,12 @@ export default function AdminPanel() {
         </Card>
 
         <Card>
-          <CardContent className="p-6">
+          <CardContent className="p-4 md:p-6">
             <div className="flex items-center">
               <AlertCircle className="h-4 w-4 text-yellow-600" />
               <div className="ml-2">
-                <p className="text-sm font-medium text-muted-foreground">Com Problemas</p>
-                <p className="text-2xl font-bold text-yellow-600">
+                <p className="text-xs md:text-sm font-medium text-muted-foreground">Com Problemas</p>
+                <p className="text-xl md:text-2xl font-bold text-yellow-600">
                   {companies.filter((c: Company) => c.status === 'suspended' || c.status === 'canceled').length}
                 </p>
               </div>
@@ -316,28 +318,29 @@ export default function AdminPanel() {
       </div>
 
       {/* Companies Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 md:gap-4">
         {companies.map((company: CompanyWithStats) => (
           <Card key={company.id} data-testid={`card-company-${company.id}`}>
             <CardHeader className="pb-3">
               <div className="flex items-start justify-between">
-                <div className="space-y-1">
-                  <CardTitle className="text-base">{company.name}</CardTitle>
+                <div className="space-y-1 flex-1 min-w-0">
+                  <CardTitle className="text-sm md:text-base truncate">{company.name}</CardTitle>
                   <div className="flex items-center space-x-2">
                     <Badge 
                       variant="outline" 
-                      className={`${getStatusColor(company.status)} text-white border-0`}
+                      className={`${getStatusColor(company.status)} text-white border-0 text-xs`}
                     >
                       {company.status}
                     </Badge>
                   </div>
                 </div>
-                <div className="flex space-x-1">
+                <div className="flex space-x-1 ml-2">
                   <Button
                     variant="ghost"
                     size="sm"
                     onClick={() => handleEditCompany(company)}
                     data-testid={`button-edit-${company.id}`}
+                    className="h-8 w-8 p-0"
                   >
                     <Edit className="h-4 w-4" />
                   </Button>
@@ -346,6 +349,7 @@ export default function AdminPanel() {
                     size="sm"
                     onClick={() => handleDeleteCompany(company)}
                     data-testid={`button-delete-${company.id}`}
+                    className="h-8 w-8 p-0"
                   >
                     <Trash2 className="h-4 w-4 text-red-500" />
                   </Button>
@@ -370,41 +374,43 @@ export default function AdminPanel() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-3 gap-2 pt-2 border-t">
+              <div className="grid grid-cols-3 gap-1 md:gap-2 pt-2 border-t">
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Usuários</p>
-                  <p className="font-semibold">{company.userCount || 0}/{company.maxUsers}</p>
+                  <p className="font-semibold text-sm md:text-base">{company.userCount || 0}/{company.maxUsers}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Conexões</p>
-                  <p className="font-semibold">{company.connectionCount || 0}/{company.maxConnections}</p>
+                  <p className="font-semibold text-sm md:text-base">{company.connectionCount || 0}/{company.maxConnections}</p>
                 </div>
                 <div className="text-center">
                   <p className="text-xs text-muted-foreground">Filas</p>
-                  <p className="font-semibold">0/{company.maxQueues}</p>
+                  <p className="font-semibold text-sm md:text-base">{company.queueCount || 0}/{company.maxQueues}</p>
                 </div>
               </div>
 
-              <div className="flex space-x-2 pt-2">
+              <div className="flex flex-col sm:flex-row gap-2 pt-2">
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm"
                   onClick={() => handleViewUsers(company)}
                   data-testid={`button-view-users-${company.id}`}
                 >
-                  <Eye className="mr-2 h-3 w-3" />
-                  Ver Usuários
+                  <Eye className="mr-1 md:mr-2 h-3 w-3" />
+                  <span className="hidden sm:inline">Ver Usuários</span>
+                  <span className="sm:hidden">Usuários</span>
                 </Button>
                 <Button
                   variant="outline"
                   size="sm"
-                  className="flex-1"
+                  className="flex-1 text-xs md:text-sm"
                   onClick={() => handleAddUser(company)}
                   data-testid={`button-add-user-${company.id}`}
                 >
-                  <UserPlus className="mr-2 h-3 w-3" />
-                  Adicionar Usuário
+                  <UserPlus className="mr-1 md:mr-2 h-3 w-3" />
+                  <span className="hidden sm:inline">Adicionar Usuário</span>
+                  <span className="sm:hidden">Adicionar</span>
                 </Button>
               </div>
             </CardContent>
@@ -414,7 +420,7 @@ export default function AdminPanel() {
 
       {/* Company Modal */}
       <Dialog open={showCompanyModal} onOpenChange={setShowCompanyModal}>
-        <DialogContent className="sm:max-w-[600px]" data-testid="dialog-company-form">
+        <DialogContent className="w-[95vw] sm:max-w-[600px] max-h-[90vh] overflow-y-auto" data-testid="dialog-company-form">
           <DialogHeader>
             <DialogTitle>
               {editingCompany ? 'Editar Empresa' : 'Criar Nova Empresa'}
@@ -429,7 +435,7 @@ export default function AdminPanel() {
 
           <Form {...companyForm}>
             <form onSubmit={companyForm.handleSubmit((data) => companyMutation.mutate(data))} className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={companyForm.control}
                   name="name"
@@ -468,7 +474,7 @@ export default function AdminPanel() {
                 />
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <FormField
                   control={companyForm.control}
                   name="phone"
@@ -530,7 +536,7 @@ export default function AdminPanel() {
                 )}
               />
 
-              <div className="grid grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <FormField
                   control={companyForm.control}
                   name="maxUsers"
@@ -616,7 +622,7 @@ export default function AdminPanel() {
 
       {/* Users Modal */}
       <Dialog open={showUsersModal} onOpenChange={setShowUsersModal}>
-        <DialogContent className="sm:max-w-[700px]" data-testid="dialog-company-users">
+        <DialogContent className="w-[95vw] sm:max-w-[700px] max-h-[90vh] overflow-y-auto" data-testid="dialog-company-users">
           <DialogHeader>
             <DialogTitle>Usuários da Empresa - {selectedCompany?.name}</DialogTitle>
             <DialogDescription>
@@ -674,7 +680,7 @@ export default function AdminPanel() {
 
       {/* Add User Modal */}
       <Dialog open={showUserModal} onOpenChange={setShowUserModal}>
-        <DialogContent className="sm:max-w-[500px]" data-testid="dialog-add-user">
+        <DialogContent className="w-[95vw] sm:max-w-[500px] max-h-[90vh] overflow-y-auto" data-testid="dialog-add-user">
           <DialogHeader>
             <DialogTitle>Adicionar Usuário à {selectedCompany?.name}</DialogTitle>
             <DialogDescription>

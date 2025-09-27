@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -70,6 +70,13 @@ export default function ClientsPage() {
     staleTime: 30000,
   });
 
+  // Auto-select first client when clients are loaded
+  useEffect(() => {
+    if (clients.length > 0 && !selectedClient) {
+      setSelectedClient(clients[0]);
+    }
+  }, [clients, selectedClient]);
+
   const createClient = useMutation({
     mutationFn: async (payload: any) => {
       const res = await apiRequest('POST', '/api/clients', payload);
@@ -123,6 +130,54 @@ export default function ClientsPage() {
       email: newClient.email || undefined,
       notes: newClient.observations || undefined,
     });
+  };
+
+  const handleImportFromWhatsApp = async () => {
+    try {
+      toast({
+        title: "Importando contatos...",
+        description: "Buscando contatos do WhatsApp conectado",
+      });
+      
+      // Call Evolution API to get contacts
+      const response = await apiRequest('GET', '/evolution/contacts');
+      const contacts = await response.json();
+      
+      if (contacts && contacts.length > 0) {
+        // Create clients from WhatsApp contacts
+        const importPromises = contacts.map(contact => 
+          apiRequest('POST', '/api/clients', {
+            name: contact.name || contact.pushName || `Contato ${contact.id}`,
+            phone: contact.id.replace('@c.us', ''),
+            email: contact.email || undefined,
+            notes: `Importado do WhatsApp - ${new Date().toLocaleDateString()}`
+          })
+        );
+        
+        await Promise.all(importPromises);
+        
+        toast({
+          title: "Importação concluída!",
+          description: `${contacts.length} contatos importados com sucesso`,
+        });
+        
+        // Refresh clients list
+        queryClient.invalidateQueries({ queryKey: ['clients'] });
+      } else {
+        toast({
+          title: "Nenhum contato encontrado",
+          description: "Não há contatos disponíveis no WhatsApp conectado",
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Failed to import from WhatsApp:', error);
+      toast({
+        title: "Erro na importação",
+        description: "Falha ao importar contatos do WhatsApp",
+        variant: "destructive"
+      });
+    }
   };
 
   const handleExportExcel = async () => {
@@ -221,11 +276,36 @@ export default function ClientsPage() {
   };
 
   const handleChatWithClient = (client: Client) => {
-    // Implement chat functionality
-    toast({
-      title: "Iniciar conversa",
-      description: `Redirecionando para o chat com ${client.name}...`,
-    });
+    // Create new conversation for this client
+    const createConversation = async () => {
+      try {
+        const response = await apiRequest('POST', '/api/conversations', {
+          contactName: client.name,
+          contactPhone: client.phone,
+          clientId: client.id,
+          status: 'waiting',
+          priority: 'medium',
+          lastMessage: 'Nova conversa iniciada'
+        });
+        
+        if (response.ok) {
+          toast({
+            title: "Conversa iniciada!",
+            description: `Nova conversa criada com ${client.name}`,
+          });
+          // Redirect to conversations page
+          window.location.href = '/conversations';
+        }
+      } catch (error) {
+        toast({
+          variant: "destructive",
+          title: "Erro ao iniciar conversa",
+          description: "Não foi possível criar a conversa",
+        });
+      }
+    };
+    
+    createConversation();
   };
 
   const handleDeleteClient = (client: Client) => {
@@ -248,25 +328,6 @@ export default function ClientsPage() {
           <div className="flex items-center justify-between mb-4">
             <h1 className="text-lg sm:text-xl font-semibold text-foreground">Clientes</h1>
             <div className="flex items-center space-x-1 sm:space-x-2 flex-wrap">
-              <input
-                type="file"
-                accept=".xlsx,.xls"
-                onChange={handleImportExcel}
-                className="hidden"
-                id="import-excel"
-              />
-              <label htmlFor="import-excel">
-                <Button variant="outline" size="sm" asChild data-testid="button-import-excel">
-                  <span className="cursor-pointer">
-                    <Upload className="h-4 w-4 mr-2" />
-                    Importar
-                  </span>
-                </Button>
-              </label>
-              <Button variant="outline" size="sm" onClick={handleExportExcel} data-testid="button-export-excel">
-                <Download className="h-4 w-4 mr-2" />
-                Exportar
-              </Button>
               <Button variant="outline" size="sm" onClick={() => setShowFilters(!showFilters)}>
                 <Filter className="h-4 w-4 mr-2" />
                 Filtrar
@@ -279,6 +340,38 @@ export default function ClientsPage() {
                     Novo
                   </Button>
                 </DialogTrigger>
+                
+                {/* Menu Kebab */}
+                <div className="relative">
+                  <Button variant="outline" size="sm">
+                    <MoreHorizontal className="h-4 w-4" />
+                  </Button>
+                  <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border">
+                    <div className="py-1">
+                      <input
+                        type="file"
+                        accept=".xlsx,.xls"
+                        onChange={handleImportExcel}
+                        className="hidden"
+                        id="import-excel"
+                      />
+                      <label htmlFor="import-excel">
+                        <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                          <Upload className="h-4 w-4 mr-2" />
+                          Importar Contatos
+                        </button>
+                      </label>
+                      <button 
+                        onClick={handleExportExcel}
+                        className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                      >
+                        <Download className="h-4 w-4 mr-2" />
+                        Exportar
+                      </button>
+                    </div>
+                  </div>
+                </div>
+                
                 <DialogContent className="sm:max-w-lg">
                   <DialogHeader>
                     <DialogTitle>Cadastrar Novo Cliente</DialogTitle>
@@ -382,9 +475,42 @@ export default function ClientsPage() {
                 </DialogContent>
               </Dialog>
               
-              <Button variant="outline" size="sm">
-                <MoreHorizontal className="h-4 w-4" />
-              </Button>
+              <div className="relative">
+                <Button variant="outline" size="sm">
+                  <MoreHorizontal className="h-4 w-4" />
+                </Button>
+                <div className="absolute right-0 mt-2 w-48 bg-white dark:bg-gray-800 rounded-md shadow-lg z-10 border">
+                  <div className="py-1">
+                    <input
+                      type="file"
+                      accept=".xlsx,.xls"
+                      onChange={handleImportExcel}
+                      className="hidden"
+                      id="import-excel"
+                    />
+                    <label htmlFor="import-excel">
+                      <button className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700">
+                        <Upload className="h-4 w-4 mr-2" />
+                        Importar de Planilha
+                      </button>
+                    </label>
+                    <button 
+                      onClick={handleImportFromWhatsApp}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <MessageCircle className="h-4 w-4 mr-2" />
+                      Importar do WhatsApp
+                    </button>
+                    <button 
+                      onClick={handleExportExcel}
+                      className="flex items-center w-full px-4 py-2 text-sm text-gray-700 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700"
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Exportar
+                    </button>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
           
@@ -480,9 +606,6 @@ export default function ClientsPage() {
                 <Button variant="outline" size="sm" onClick={() => handleChatWithClient(selectedClient)} data-testid="button-chat-client">
                   <MessageCircle className="h-4 w-4 mr-2" />
                   Chat
-                </Button>
-                <Button variant="outline" size="sm">
-                  <MoreHorizontal className="h-4 w-4" />
                 </Button>
               </div>
             </div>

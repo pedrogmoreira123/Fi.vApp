@@ -40,6 +40,8 @@ io.on('connection', (socket) => {
   });
 });
 
+// WhatsApp routes are now handled by the centralized route modules
+
 // Start server
 const startServer = async () => {
   try {

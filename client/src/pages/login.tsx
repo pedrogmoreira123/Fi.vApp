@@ -28,7 +28,7 @@ export default function LoginPage() {
     try {
       const success = await login(username, password);
       if (success) {
-        setLocation('/');
+        setLocation('/tickets');
         toast({
           title: t('auth.welcomeBack'),
           description: t('auth.loginSuccess'),

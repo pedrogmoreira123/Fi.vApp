@@ -7,13 +7,8 @@ import DateRangePicker from '@/components/reports/date-range-picker';
 import ReportExport from '@/components/reports/report-export';
 import WeeklyPerformanceChart from '@/components/charts/weekly-performance-chart';
 import QueueVolumeChart from '@/components/charts/queue-volume-chart';
-import { 
-  mockConversationsByPeriod, 
-  mockClientRanking, 
-  mockAgentPerformance, 
-  mockQueueComparison,
-  mockWeeklyConversationsTrend 
-} from '@/lib/mock-reports-data';
+import { useQuery } from '@tanstack/react-query';
+import { apiRequest } from '@/lib/queryClient';
 import { 
   Users, 
   MessageCircle, 
@@ -29,15 +24,44 @@ export default function EnhancedReportsPage() {
   const { t } = useT();
   const [dateRange, setDateRange] = useState({ from: '', to: '', period: 'weekly' });
 
+  // Fetch real data from API
+  const { data: conversations = [], isLoading: isLoadingConversations } = useQuery({
+    queryKey: ['conversations', dateRange],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/conversations');
+      return response.json();
+    }
+  });
+
+  const { data: users = [], isLoading: isLoadingUsers } = useQuery({
+    queryKey: ['users'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/users');
+      return response.json();
+    }
+  });
+
+  const { data: clients = [], isLoading: isLoadingClients } = useQuery({
+    queryKey: ['clients'],
+    queryFn: async () => {
+      const response = await apiRequest('GET', '/api/clients');
+      return response.json();
+    }
+  });
+
   const handleDateRangeChange = (newDateRange: { from: string; to: string; period: string }) => {
     setDateRange(newDateRange);
-    // In a real app, this would trigger data fetching with the new date range
+    // Trigger data refetch with new date range
     console.log('Date range changed:', newDateRange);
   };
 
-  const totalConversations = mockConversationsByPeriod.reduce((sum, item) => sum + item.total, 0);
-  const completedConversations = mockConversationsByPeriod.reduce((sum, item) => sum + item.completed, 0);
-  const completionRate = Math.round((completedConversations / totalConversations) * 100);
+  // Calculate real metrics
+  const totalConversations = conversations.length;
+  const completedConversations = conversations.filter(c => c.status === 'completed').length;
+  const completionRate = totalConversations > 0 ? Math.round((completedConversations / totalConversations) * 100) : 0;
+  
+  const activeUsers = users.filter(u => u.isOnline).length;
+  const totalClients = clients.length;
 
   return (
     <div className="p-6 space-y-6">
@@ -103,7 +127,7 @@ export default function EnhancedReportsPage() {
                   Agentes Ativos
                 </p>
                 <p className="text-2xl font-bold text-foreground" data-testid="text-active-agents">
-                  {mockAgentPerformance.length}
+                  {users.length}
                 </p>
               </div>
               <div className="w-10 h-10 bg-purple-100 dark:bg-purple-900 rounded-full flex items-center justify-center">
@@ -149,18 +173,18 @@ export default function EnhancedReportsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('reports.conversationsByPeriod')}</CardTitle>
               <ReportExport 
-                data={mockConversationsByPeriod} 
+                data={conversations} 
                 title="Conversas por Período" 
                 reportType="conversations" 
               />
             </CardHeader>
             <CardContent>
-              <WeeklyPerformanceChart data={mockWeeklyConversationsTrend} />
+              <WeeklyPerformanceChart data={conversations} />
               
               <div className="mt-6 space-y-4">
                 <h4 className="font-semibold">Detalhamento por Dia</h4>
                 <div className="grid gap-4">
-                  {mockConversationsByPeriod.map((item, index) => (
+                  {conversations.map((item, index) => (
                     <div 
                       key={index}
                       className="flex items-center justify-between p-4 bg-muted rounded-lg"
@@ -189,14 +213,14 @@ export default function EnhancedReportsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('reports.clientRanking')}</CardTitle>
               <ReportExport 
-                data={mockClientRanking} 
+                data={clients} 
                 title="Ranking de Clientes" 
                 reportType="clients" 
               />
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockClientRanking.map((client, index) => (
+                {clients.map((client, index) => (
                   <div 
                     key={index}
                     className="flex items-center justify-between p-4 border rounded-lg"
@@ -233,14 +257,14 @@ export default function EnhancedReportsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('reports.agentRanking')}</CardTitle>
               <ReportExport 
-                data={mockAgentPerformance} 
+                data={users} 
                 title="Performance dos Agentes" 
                 reportType="agents" 
               />
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {mockAgentPerformance.map((agent, index) => (
+                {users.map((agent, index) => (
                   <div 
                     key={agent.id}
                     className="p-4 border rounded-lg"
@@ -293,18 +317,18 @@ export default function EnhancedReportsPage() {
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle>{t('reports.queueVolume')}</CardTitle>
               <ReportExport 
-                data={mockQueueComparison} 
+                data={conversations} 
                 title="Comparação por Fila" 
                 reportType="queues" 
               />
             </CardHeader>
             <CardContent>
               <div className="mb-6">
-                <QueueVolumeChart data={mockQueueComparison} />
+                <QueueVolumeChart data={conversations} />
               </div>
               
               <div className="space-y-4">
-                {mockQueueComparison.map((queue, index) => (
+                {conversations.map((queue, index) => (
                   <div 
                     key={index}
                     className="p-4 border rounded-lg"

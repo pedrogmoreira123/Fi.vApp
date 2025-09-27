@@ -137,7 +137,6 @@ export default function TicketsPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [showFilters, setShowFilters] = useState(false);
   const [showNewTicketModal, setShowNewTicketModal] = useState(false);
-  const [newTicketType, setNewTicketType] = useState<'agent' | 'client'>('agent');
   
   const [filters, setFilters] = useState<FilterOptions>({
     assignedTo: '',
@@ -159,11 +158,36 @@ export default function TicketsPage() {
   // Create ticket mutation
   const createTicketMutation = useMutation({
     mutationFn: async (ticketData: any) => {
-      const response = await apiRequest('POST', '/api/conversations', ticketData);
+      // First, check if client exists by phone
+      let client = clients.find(c => c.phone === ticketData.clientPhone);
+      
+      if (!client) {
+        // Create new client
+        const clientResponse = await apiRequest('POST', '/api/clients', {
+          name: `Cliente ${ticketData.clientPhone}`,
+          phone: ticketData.clientPhone,
+          notes: 'Criado automaticamente via novo atendimento'
+        });
+        client = await clientResponse.json();
+      }
+
+      // Create conversation
+      const conversationData = {
+        contactName: client.name,
+        contactPhone: client.phone,
+        clientId: client.id,
+        status: 'waiting',
+        priority: ticketData.priority,
+        assignedAgentId: ticketData.assignedTo,
+        lastMessage: ticketData.title
+      };
+
+      const response = await apiRequest('POST', '/api/conversations', conversationData);
       return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['conversations'] });
+      queryClient.invalidateQueries({ queryKey: ['clients'] });
       toast({
         title: "Atendimento criado!",
         description: "O atendimento foi criado com sucesso.",
@@ -277,7 +301,7 @@ export default function TicketsPage() {
   const counts = getTicketCounts();
 
   const handleCreateTicket = () => {
-    if (!newTicket.title || !newTicket.assignedTo || (!newTicket.clientName && !newTicket.selectedClient)) {
+    if (!newTicket.title || !newTicket.assignedTo || !newTicket.clientPhone) {
       toast({
         variant: "destructive",
         title: "Erro",
@@ -286,17 +310,12 @@ export default function TicketsPage() {
       return;
     }
 
-    const clientInfo = newTicketType === 'client' 
-      ? clients.find(c => c.id === newTicket.selectedClient)
-      : { name: newTicket.clientName, phone: newTicket.clientPhone };
-
     const ticketData = {
-      contactName: clientInfo?.name || newTicket.clientName,
-      contactPhone: clientInfo?.phone || newTicket.clientPhone,
-      assignedAgentId: newTicket.assignedTo,
-      status: 'waiting',
+      title: newTicket.title,
+      description: newTicket.description,
       priority: newTicket.priority,
-      tags: [newTicket.title]
+      assignedTo: newTicket.assignedTo,
+      clientPhone: newTicket.clientPhone
     };
 
     createTicketMutation.mutate(ticketData);
@@ -355,82 +374,41 @@ export default function TicketsPage() {
               </DialogHeader>
               
               <div className="space-y-4">
-                {/* Tipo de criação */}
+                {/* Busca por telefone */}
                 <div className="space-y-2">
-                  <Label>Tipo de Atendimento</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={newTicketType === 'agent' ? 'default' : 'outline'}
-                      onClick={() => setNewTicketType('agent')}
-                      className="justify-start"
-                    >
-                      <UserPlus className="h-4 w-4 mr-2" />
-                      Por Atendente
-                    </Button>
-                    <Button
-                      variant={newTicketType === 'client' ? 'default' : 'outline'}
-                      onClick={() => setNewTicketType('client')}
-                      className="justify-start"
-                    >
-                      <UsersIcon className="h-4 w-4 mr-2" />
-                      Por Cliente
-                    </Button>
-                  </div>
+                  <Label htmlFor="clientPhone">Telefone do Cliente *</Label>
+                  <Input
+                    id="clientPhone"
+                    placeholder="Digite o número de telefone"
+                    value={newTicket.clientPhone}
+                    onChange={(e) => setNewTicket(prev => ({ ...prev, clientPhone: e.target.value }))}
+                  />
+                  <p className="text-sm text-muted-foreground">
+                    Se o cliente não existir, será criado automaticamente
+                  </p>
                 </div>
 
-                {/* Título */}
+                {/* Motivo */}
                 <div className="space-y-2">
-                  <Label htmlFor="title">Título *</Label>
+                  <Label htmlFor="title">Motivo *</Label>
                   <Input
                     id="title"
-                    placeholder="Descreva o motivo do atendimento"
+                    placeholder="Motivo do atendimento"
                     value={newTicket.title}
                     onChange={(e) => setNewTicket(prev => ({ ...prev, title: e.target.value }))}
                   />
                 </div>
 
-                {/* Cliente */}
-                {newTicketType === 'client' ? (
-                  <div className="space-y-2">
-                    <Label htmlFor="client">Cliente *</Label>
-                    <Select 
-                      value={newTicket.selectedClient} 
-                      onValueChange={(value) => setNewTicket(prev => ({ ...prev, selectedClient: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Selecione um cliente" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {clients.map((client) => (
-                          <SelectItem key={client.id} value={client.id}>
-                            {client.name} - {client.phone}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  </div>
-                ) : (
-                  <div className="grid grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="clientName">Nome do Cliente *</Label>
-                      <Input
-                        id="clientName"
-                        placeholder="Nome completo"
-                        value={newTicket.clientName}
-                        onChange={(e) => setNewTicket(prev => ({ ...prev, clientName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="clientPhone">Telefone</Label>
-                      <Input
-                        id="clientPhone"
-                        placeholder="(11) 99999-9999"
-                        value={newTicket.clientPhone}
-                        onChange={(e) => setNewTicket(prev => ({ ...prev, clientPhone: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                )}
+                {/* Descrição */}
+                <div className="space-y-2">
+                  <Label htmlFor="description">Descrição</Label>
+                  <Textarea
+                    id="description"
+                    placeholder="Descrição detalhada do atendimento"
+                    value={newTicket.description}
+                    onChange={(e) => setNewTicket(prev => ({ ...prev, description: e.target.value }))}
+                  />
+                </div>
 
                 {/* Atendente */}
                 <div className="space-y-2">

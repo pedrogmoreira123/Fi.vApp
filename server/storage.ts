@@ -101,7 +101,7 @@ export interface IStorage {
   createClient(client: InsertClient): Promise<Client>;
   updateClient(id: string, client: Partial<InsertClient>): Promise<Client>;
   deleteClient(id: string): Promise<boolean>;
-  getAllClients(): Promise<Client[]>;
+  getAllClients(companyId?: string): Promise<Client[]>;
   
   // Announcement operations
   getAnnouncement(id: string): Promise<Announcement | undefined>;
@@ -607,10 +607,16 @@ export class DatabaseStorage implements IStorage {
     return (result.rowCount ?? 0) > 0;
   }
   
-  async getAllClients(): Promise<Client[]> {
-    // Filter by current environment
+  async getAllClients(companyId?: string): Promise<Client[]> {
+    // Filter by current environment and company
+    const conditions = [eq(clients.environment, this.getEnvironmentFilter())];
+    
+    if (companyId) {
+      conditions.push(eq(clients.companyId, companyId));
+    }
+    
     return await db.select().from(clients)
-      .where(eq(clients.environment, this.getEnvironmentFilter()))
+      .where(and(...conditions))
       .orderBy(desc(clients.createdAt));
   }
   
@@ -1305,6 +1311,76 @@ export class DatabaseStorage implements IStorage {
       console.log(`✅ WAHA session removed: ${tenantId}`);
     } catch (error) {
       console.error('❌ Error removing WAHA session:', error);
+    }
+  }
+
+  // ===== CHATBOTS METHODS =====
+
+  async getAllChatbots(companyId?: string): Promise<any[]> {
+    try {
+      const conditions = [eq(chatbots.environment, this.getEnvironmentFilter())];
+      
+      if (companyId) {
+        conditions.push(eq(chatbots.companyId, companyId));
+      }
+      
+      return await db.select().from(chatbots)
+        .where(and(...conditions))
+        .orderBy(desc(chatbots.createdAt));
+    } catch (error) {
+      console.error('❌ Error getting chatbots:', error);
+      return [];
+    }
+  }
+
+  async createChatbot(chatbotData: any): Promise<any> {
+    try {
+      const [chatbot] = await db.insert(chatbots).values({
+        ...chatbotData,
+        environment: this.getEnvironmentFilter(),
+        createdAt: new Date(),
+        updatedAt: new Date()
+      }).returning();
+      
+      return chatbot;
+    } catch (error) {
+      console.error('❌ Error creating chatbot:', error);
+      throw error;
+    }
+  }
+
+  async updateChatbot(id: string, chatbotData: any): Promise<any> {
+    try {
+      const [chatbot] = await db.update(chatbots)
+        .set({
+          ...chatbotData,
+          updatedAt: new Date()
+        })
+        .where(and(
+          eq(chatbots.id, id),
+          eq(chatbots.environment, this.getEnvironmentFilter())
+        ))
+        .returning();
+      
+      return chatbot;
+    } catch (error) {
+      console.error('❌ Error updating chatbot:', error);
+      throw error;
+    }
+  }
+
+  async deleteChatbot(id: string): Promise<boolean> {
+    try {
+      const result = await db.delete(chatbots)
+        .where(and(
+          eq(chatbots.id, id),
+          eq(chatbots.environment, this.getEnvironmentFilter())
+        ));
+      
+      return result.rowCount > 0;
+    } catch (error) {
+      console.error('❌ Error deleting chatbot:', error);
+      return false;
     }
   }
 

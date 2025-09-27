@@ -49,6 +49,12 @@ export default function UserModal({ isOpen, onClose, user, onSave }: UserModalPr
   }, [user, isOpen]);
 
   const handleSave = () => {
+    // Validate required fields
+    if (!name || !username || !email) {
+      alert('Por favor, preencha todos os campos obrigatórios.');
+      return;
+    }
+
     const userData = {
       name,
       username,

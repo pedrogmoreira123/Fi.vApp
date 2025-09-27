@@ -104,10 +104,10 @@ export const apiClient = new ApiClient(API_BASE_URL, defaultHeaders);
 export const endpoints = {
   // Auth
   auth: {
-    login: '/users/login',
-    register: '/users/register',
-    profile: '/users/profile',
-    refresh: '/users/refresh',
+    login: '/auth/login',
+    register: '/auth/register',
+    profile: '/auth/me',
+    refresh: '/auth/refresh',
   },
   
   // WhatsApp
@@ -118,6 +118,9 @@ export const endpoints = {
     status: '/whatsapp/status',
     send: '/whatsapp/send',
     messages: '/whatsapp/messages',
+    instance: '/whatsapp/instance',
+    instanceConnect: '/whatsapp/instance/connect',
+    instanceDisconnect: '/whatsapp/instance/disconnect',
   },
   
   // System

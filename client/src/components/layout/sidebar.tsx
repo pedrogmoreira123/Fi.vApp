@@ -31,10 +31,10 @@ const getNavigationItems = (userRole: string) => [
   {
     sectionKey: 'navigation.main',
     items: [
-      { nameKey: 'navigation.conversations', href: '/conversations', icon: MessageCircle },
-      { nameKey: 'navigation.tickets', href: '/tickets', icon: AlertCircle },
-      { nameKey: 'navigation.clients', href: '/clients', icon: Users },
       { nameKey: 'navigation.dashboard', href: '/', icon: BarChart3 },
+      { nameKey: 'navigation.tickets', href: '/tickets', icon: AlertCircle },
+      { nameKey: 'navigation.conversations', href: '/conversations', icon: MessageCircle },
+      { nameKey: 'navigation.clients', href: '/clients', icon: Users },
       { nameKey: 'navigation.reports', href: '/enhanced-reports', icon: TrendingUp },
     ]
   },
@@ -46,7 +46,6 @@ const getNavigationItems = (userRole: string) => [
       { nameKey: 'navigation.chatbots', href: '/chatbots', icon: Bot, adminOnly: true },
       { nameKey: 'navigation.chatBot', href: '/ai-agent', icon: Bot },
       { nameKey: 'navigation.whatsapp', href: '/whatsapp-settings', icon: Smartphone },
-      { nameKey: 'navigation.financeiro', href: '/financeiro', icon: DollarSign },
       { nameKey: 'navigation.settings', href: '/settings', icon: Settings },
     ]
   },

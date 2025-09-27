@@ -26,6 +26,7 @@ interface Announcement {
   content: string;
   authorId: string;
   isActive: boolean;
+  expiresAt?: string;
   createdAt: string;
   updatedAt: string;
   author?: {
@@ -254,6 +255,7 @@ function AnnouncementModal({ isOpen, onClose, announcement, onSave }: Announceme
   const [title, setTitle] = useState(announcement?.title || '');
   const [content, setContent] = useState(announcement?.content || '');
   const [isActive, setIsActive] = useState(announcement?.isActive ?? true);
+  const [expiresAt, setExpiresAt] = useState(announcement?.expiresAt ? new Date(announcement.expiresAt).toISOString().slice(0, 16) : '');
 
   const handleSave = () => {
     if (!title.trim() || !content.trim()) {
@@ -263,7 +265,8 @@ function AnnouncementModal({ isOpen, onClose, announcement, onSave }: Announceme
     onSave({
       title: title.trim(),
       content: content.trim(),
-      isActive
+      isActive,
+      expiresAt: expiresAt ? new Date(expiresAt).toISOString() : undefined,
     });
   };
 
@@ -306,6 +309,20 @@ function AnnouncementModal({ isOpen, onClose, announcement, onSave }: Announceme
               placeholder="Digite o conteúdo do aviso"
               className="min-h-[100px]"
             />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="expiresAt">Data Limite (opcional)</Label>
+            <Input
+              id="expiresAt"
+              type="datetime-local"
+              value={expiresAt}
+              onChange={(e) => setExpiresAt(e.target.value)}
+              placeholder="Selecione a data de expiração"
+            />
+            <p className="text-sm text-muted-foreground">
+              O aviso será automaticamente desativado após esta data
+            </p>
           </div>
 
           <div className="flex items-center space-x-2">
