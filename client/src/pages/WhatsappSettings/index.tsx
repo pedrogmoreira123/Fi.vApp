@@ -19,14 +19,16 @@ const WhatsappSettings: React.FC = () => {
   const { 
     instance, 
     qrcode, 
-    loading, 
+    status, 
     error, 
-    isConnected, 
-    isConnecting, 
     connect, 
     disconnect, 
     refreshInstance 
   } = useWhatsapp();
+  
+  const isConnected = status === 'connected';
+  const isConnecting = status === 'connecting';
+  const loading = false; // Removido loading state do hook
   
   const [showQRModal, setShowQRModal] = useState(false);
 
